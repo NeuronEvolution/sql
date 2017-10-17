@@ -43,6 +43,10 @@ func goType(typ string) (goType string) {
 		return "int32"
 	} else if typ == "longtext" {
 		return "string"
+	} else if typ == "float" {
+		return "float32"
+	} else if typ == "double" {
+		return "float64"
 	} else {
 		return typ
 	}

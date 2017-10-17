@@ -636,6 +636,52 @@ func (g *Generator) genQuery(t *Table) {
 	g.Pn("}")
 	g.Pn("")
 
+	g.Pn("func(q *%sQuery)Left()*%sQuery{", t.GoName, t.GoName)
+	g.Pn("    q.WhereBuffer.WriteString(\" ( \")")
+	g.Pn("    return q")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func(q *%sQuery)Right()*%sQuery{", t.GoName, t.GoName)
+	g.Pn("    q.WhereBuffer.WriteString(\" ) \")")
+	g.Pn("    return q")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func(q *%sQuery)And()*%sQuery{", t.GoName, t.GoName)
+	g.Pn("    q.WhereBuffer.WriteString(\" AND \")")
+	g.Pn("    return q")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func(q *%sQuery)Or()*%sQuery{", t.GoName, t.GoName)
+	g.Pn("    q.WhereBuffer.WriteString(\" OR \")")
+	g.Pn("    return q")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func(q *%sQuery)Not()*%sQuery{", t.GoName, t.GoName)
+	g.Pn("    q.WhereBuffer.WriteString(\" NOT \")")
+	g.Pn("    return q")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *%sQuery) Limit(startIncluded int64, count int64) *%sQuery {", t.GoName, t.GoName)
+	g.Pn("	q.LimitBuffer.WriteString(fmt.Sprintf(\" limit %%d,%%d\", startIncluded, count))")
+	g.Pn("	return q")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *%sQuery) Sort(fieldName string, asc bool) *%sQuery {", t.GoName, t.GoName)
+	g.Pn("	if asc {")
+	g.Pn("	q.OrderBuffer.WriteString(fmt.Sprintf(\" order by %%s asc\", fieldName))")
+	g.Pn("} else {")
+	g.Pn("	q.OrderBuffer.WriteString(fmt.Sprintf(\" order by %%s desc\", fieldName))")
+	g.Pn("}")
+	g.Pn("")
+	g.Pn("	return q")
+	g.Pn("}")
+
 	for _, c := range t.ColumnList {
 		g.Pn("func (q *%sQuery)%s_Column(r runtime.Relation,v %s)*%sQuery{", t.GoName, c.GoName, c.GoType, t.GoName)
 		g.Pn("    q.WhereBuffer.WriteString(\"%s\"+string(r)+\"'\"+fmt.Sprint(v)+\"'\")", c.DbName)
