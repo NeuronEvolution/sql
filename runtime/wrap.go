@@ -55,6 +55,7 @@ func (db *DB) Prepare(ctx context.Context, query string) (*Stmt, error) {
 }
 
 func (db *DB) Query(ctx context.Context, query string, args ...interface{}) (*Rows, error) {
+	db.logger.Info(fmt.Sprint(db, db.db))
 	db.logger.Info("Query", zap.Any("ctx", ctx), zap.String("query", fmt.Sprintf(query, args...)))
 	rows, err := db.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -99,7 +100,7 @@ type Tx struct {
 
 func (tx *Tx) Commit() error {
 	tx.db.logger.Info("Commit")
-	err := tx.Commit()
+	err := tx.tx.Commit()
 	if err != nil {
 		tx.db.logger.Error("sqlDriver", zap.Error(err))
 		return err
@@ -110,7 +111,7 @@ func (tx *Tx) Commit() error {
 
 func (tx *Tx) Rollback() error {
 	tx.db.logger.Info("Rollback")
-	err := tx.Rollback()
+	err := tx.tx.Rollback()
 	if err != nil {
 		tx.db.logger.Error("sqlDriver", zap.Error(err))
 		return err

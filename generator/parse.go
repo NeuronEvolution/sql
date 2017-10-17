@@ -1,11 +1,11 @@
 package generator
 
 import (
-	"strings"
 	"errors"
+	"strings"
 )
 
-func goName(name string)(goName string) {
+func goName(name string) (goName string) {
 	goName = ""
 	is_ := true
 	for i := 0; i < len(name); i++ {
@@ -28,7 +28,7 @@ func goName(name string)(goName string) {
 	return goName
 }
 
-func goType(typ string)(goType string) {
+func goType(typ string) (goType string) {
 	if typ == "bigint" {
 		return "int64"
 	} else if typ == "varchar" {
@@ -36,19 +36,19 @@ func goType(typ string)(goType string) {
 	} else if typ == "int" {
 		return "int32"
 	} else if typ == "datetime" {
-		return "string"
+		return "time.Time"
 	} else if typ == "timestamp" {
-		return "string"
+		return "time.Time"
 	} else if typ == "tinyint" {
 		return "int32"
-	} else if (typ == "longtext") {
+	} else if typ == "longtext" {
 		return "string"
 	} else {
 		return typ
 	}
 }
 
-func (g *Generator)parseColumnLine(line string)(c *Column,err error) {
+func (g *Generator) parseColumnLine(line string) (c *Column, err error) {
 	c = &Column{}
 	tokens := strings.Split(line, " ")
 	c.DbName = strings.Trim(tokens[0], "`")
@@ -68,12 +68,12 @@ func (g *Generator)parseColumnLine(line string)(c *Column,err error) {
 	return c, nil
 }
 
-func (g *Generator)parsePrimaryKey(line string)(primaryKeyName string, err error) {
-	primaryKeyName = line[strings.Index(line, "`")+1:strings.LastIndex(line, "`")]
+func (g *Generator) parsePrimaryKey(line string) (primaryKeyName string, err error) {
+	primaryKeyName = line[strings.Index(line, "`")+1 : strings.LastIndex(line, "`")]
 	return primaryKeyName, nil
 }
 
-func (g *Generator)parseTable(lines []string, i *int)(t *Table,err error) {
+func (g *Generator) parseTable(lines []string, i *int) (t *Table, err error) {
 	t = newTable()
 
 	l := strings.TrimSpace(lines[*i])
@@ -108,7 +108,7 @@ func (g *Generator)parseTable(lines []string, i *int)(t *Table,err error) {
 				return nil, errors.New("primary key not found")
 			}
 		} else if strings.HasPrefix(l, "UNIQUE KEY") {
-			names := l[strings.Index(l, "(`") + 2:strings.LastIndex(l, "`)")]
+			names := l[strings.Index(l, "(`")+2 : strings.LastIndex(l, "`)")]
 			if strings.Contains(names, ",") {
 				unionIndex := &UnionIndex{}
 				names = strings.Replace(names, "`", "", -1)
@@ -134,7 +134,7 @@ func (g *Generator)parseTable(lines []string, i *int)(t *Table,err error) {
 				t.UniqueIndexList = append(t.UniqueIndexList, index)
 			}
 		} else if strings.HasPrefix(l, "KEY") {
-			names := l[strings.Index(l, "(`") + 2:strings.LastIndex(l, "`)")]
+			names := l[strings.Index(l, "(`")+2 : strings.LastIndex(l, "`)")]
 			if strings.Contains(names, ",") {
 				unionIndex := &UnionIndex{}
 				names = strings.Replace(names, "`", "", -1)
@@ -167,7 +167,7 @@ func (g *Generator)parseTable(lines []string, i *int)(t *Table,err error) {
 	return nil, errors.New("table no end")
 }
 
-func (g *Generator)parse(sql string) error {
+func (g *Generator) parse(sql string) error {
 	lines := strings.Split(sql, "\n")
 	for i := 0; i < len(lines); i++ {
 		if strings.HasPrefix(lines[i], "CREATE TABLE ") {

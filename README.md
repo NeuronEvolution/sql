@@ -1,8 +1,11 @@
-#Generator
-- Feather
+### Attention
+    - mysql connection string with ?parseTime=true
+### Feather
     - index select method
     - query builder
-- Todo
     - golang sql wrapper
-    - log and metric
-    - transaction support
+    - log
+    - transaction
+    - extendable
+### Todo
+    - metric

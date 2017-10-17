@@ -127,7 +127,7 @@ func (g *Generator) genPrepareSelectStmtBy(t *Table, columnList []*Column) {
 	g.Pn("func (dao *%sDao) prepareSelectStmtBy%s() (err error){", t.GoName, strings.Join(namesAdd, "And"))
 	g.Pn("    dao.selectStmtBy%s,err=dao.db.Prepare(context.Background(),\"SELECT \"+%s+\" FROM %s WHERE %s\")",
 		strings.Join(namesAdd, "And"),
-		fmt.Sprintf("%s_ALL_FIELDS_STRING", strings.ToUpper(t.GoName)),
+		fmt.Sprintf("%s_ALL_FIELDS_STRING", strings.ToUpper(t.DbName)),
 		t.DbName,
 		strings.Join(conditionList, " AND "))
 	g.Pn("    return err")
@@ -143,7 +143,7 @@ func (g *Generator) genPrepareSelectStmtAll(t *Table) {
 
 	g.Pn("func (dao *%sDao) prepareSelectStmtAll() (err error){", t.GoName)
 	g.Pn("    dao.selectStmtAll,err=dao.db.Prepare(context.Background(),\"SELECT \"+%s+\" FROM %s\")",
-		fmt.Sprintf("%s_ALL_FIELDS_STRING", strings.ToUpper(t.GoName)),
+		fmt.Sprintf("%s_ALL_FIELDS_STRING", strings.ToUpper(t.DbName)),
 		t.DbName)
 	g.Pn("    return err")
 	g.Pn("}")
@@ -307,7 +307,7 @@ func (g *Generator) genDaoDefSelectStmt(t *Table) {
 func (g *Generator) genDaoDef(t *Table) {
 	g.Pn("type %sDao struct{", t.GoName)
 	g.Pn("    logger *zap.Logger")
-	g.Pn("    db *runtime.DB")
+	g.Pn("    db *DB")
 	g.Pn("    insertStmt *runtime.Stmt")
 	g.Pn("    updateStmt *runtime.Stmt")
 	g.Pn("    deleteStmt *runtime.Stmt")
@@ -317,7 +317,7 @@ func (g *Generator) genDaoDef(t *Table) {
 }
 
 func (g *Generator) genDaoNew(t *Table) {
-	g.Pn("func New%sDao(db *runtime.DB)(t *%sDao){", t.GoName, t.GoName)
+	g.Pn("func New%sDao(db *DB)(t *%sDao){", t.GoName, t.GoName)
 	g.Pn("    t=&%sDao{}", t.GoName)
 	g.Pn("    t.logger=log.TypedLogger(t)")
 	g.Pn("    t.db=db")
@@ -602,18 +602,42 @@ func (g *Generator) genQuery(t *Table) {
 	g.Pn("}")
 	g.Pn("")
 
-	g.Pn("func (q *%sQuery)Select(ctx context.Context,tx *runtime.Tx)(*%s,error){", t.GoName, t.GoName)
+	g.Pn("func (q *%sQuery)Select(ctx context.Context)(*%s,error){", t.GoName, t.GoName)
+	g.Pn("    return q.dao.Select(ctx,nil,q.BuildQueryString())")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *%sQuery)SelectForUpdate(ctx context.Context,tx *runtime.Tx)(*%s,error){", t.GoName, t.GoName)
+	g.Pn("    q.ForUpdate=true")
 	g.Pn("    return q.dao.Select(ctx,tx,q.BuildQueryString())")
 	g.Pn("}")
 	g.Pn("")
 
-	g.Pn("func (q *%sQuery)SelectList(ctx context.Context,tx *runtime.Tx)(list []*%s,err error){", t.GoName, t.GoName)
+	g.Pn("func (q *%sQuery)SelectForShare(ctx context.Context,tx *runtime.Tx)(*%s,error){", t.GoName, t.GoName)
+	g.Pn("    q.ForShare=true")
+	g.Pn("    return q.dao.Select(ctx,tx,q.BuildQueryString())")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *%sQuery)SelectList(ctx context.Context)(list []*%s,err error){", t.GoName, t.GoName)
+	g.Pn("    return q.dao.SelectList(ctx,nil,q.BuildQueryString())")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *%sQuery)SelectListForUpdate(ctx context.Context,tx *runtime.Tx)(list []*%s,err error){", t.GoName, t.GoName)
+	g.Pn("    q.ForUpdate=true")
+	g.Pn("    return q.dao.SelectList(ctx,tx,q.BuildQueryString())")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *%sQuery)SelectListForShare(ctx context.Context,tx *runtime.Tx)(list []*%s,err error){", t.GoName, t.GoName)
+	g.Pn("    q.ForShare=true")
 	g.Pn("    return q.dao.SelectList(ctx,tx,q.BuildQueryString())")
 	g.Pn("}")
 	g.Pn("")
 
 	for _, c := range t.ColumnList {
-		g.Pn("func (q *%sQuery)Column_%s(r runtime.Relation,v %s)*%sQuery{", t.GoName, c.GoName, c.GoType, t.GoName)
+		g.Pn("func (q *%sQuery)%s_Column(r runtime.Relation,v %s)*%sQuery{", t.GoName, c.GoName, c.GoType, t.GoName)
 		g.Pn("    q.WhereBuffer.WriteString(\"%s\"+string(r)+\"'\"+fmt.Sprint(v)+\"'\")", c.DbName)
 		g.Pn("    return q")
 		g.Pn("}")
@@ -651,6 +675,48 @@ func (g *Generator) genDao(t *Table) {
 	g.Pn("")
 }
 
+func (g *Generator) genDatabase() {
+	//def
+	g.Pn("type DB struct{")
+	g.Pn("    runtime.DB")
+	for _, v := range g.TableList {
+		g.Pn("    %s *%sDao", v.GoName, v.GoName)
+	}
+	g.Pn("}")
+	g.Pn("")
+
+	//new
+	g.Pn("func NewDB(connectionString string) (d *DB, err error) {")
+	g.Pn("if connectionString == \"\" {")
+	g.Pn("	return nil, fmt.Errorf(\"connectionString nil\")")
+	g.Pn("}")
+	g.Pn("")
+	g.Pn("d = &DB{}")
+	g.Pn("")
+	g.Pn("db, err := runtime.Open(\"mysql\", connectionString)")
+	g.Pn("if err != nil {")
+	g.Pn("	return nil, err")
+	g.Pn("}")
+	g.Pn("d.DB=*db")
+	g.Pn("")
+	g.Pn("err = d.Ping(context.Background())")
+	g.Pn("if err != nil {")
+	g.Pn("	return nil, err")
+	g.Pn("}")
+	g.Pn("")
+	for _, v := range g.TableList {
+		g.Pn("    d.%s=New%sDao(d)", v.GoName, v.GoName)
+		g.Pn("    err=d.%s.Init()", v.GoName)
+		g.Pn("if err != nil {")
+		g.Pn("	return nil, err")
+		g.Pn("}")
+		g.Pn("")
+	}
+	g.Pn("return d,nil")
+	g.Pn("}")
+	g.Pn("")
+}
+
 func (g *Generator) gen() {
 	g.Pn("package %s", g.Namespace)
 	g.Pn("")
@@ -659,13 +725,17 @@ func (g *Generator) gen() {
 	g.Pn("    \"github.com/NeuronEvolution/log\"")
 	g.Pn("    \"bytes\"")
 	g.Pn("    \"fmt\"")
+	g.Pn("    \"time\"")
 	g.Pn("    \"context\"")
 	g.Pn("    \"github.com/NeuronEvolution/sql/runtime\"")
+	g.Pn("    _ \"github.com/go-sql-driver/mysql\"")
 	g.Pn(")")
 	g.Pn("")
 	for _, v := range g.TableList {
 		g.genDao(v)
 	}
+
+	g.genDatabase()
 }
 
 func (g *Generator) Gen(sql string, namespace string) (orm string, err error) {
