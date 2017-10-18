@@ -9,3 +9,4 @@
     - extendable
 ### Todo
     - metric
+    - batch
