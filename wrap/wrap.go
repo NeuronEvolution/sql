@@ -1,4 +1,4 @@
-package runtime
+package wrap
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func (db *DB) Prepare(ctx context.Context, query string) (*Stmt, error) {
 }
 
 func (db *DB) Query(ctx context.Context, query string, args ...interface{}) (*Rows, error) {
-	db.logger.Info(fmt.Sprint(db, db.db))
+	db.logger.Info(fmt.Sprint(db,db.db),)
 	db.logger.Info("Query", zap.Any("ctx", ctx), zap.String("query", fmt.Sprintf(query, args...)))
 	rows, err := db.db.QueryContext(ctx, query, args...)
 	if err != nil {
