@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/NeuronEvolution/sql/generator"
+	"github.com/NeuronFramework/sql/generator"
 	"io/ioutil"
 )
 

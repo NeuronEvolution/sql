@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/NeuronEvolution/log"
+	"github.com/NeuronFramework/log"
 	"go.uber.org/zap"
 )
 
