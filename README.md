@@ -9,3 +9,5 @@
 ### Todo
     - metric
     - batch
+    - count
+    - simple join,may be no need
