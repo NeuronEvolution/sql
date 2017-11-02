@@ -6,8 +6,10 @@
     - log
     - transaction
     - extendable
+    - count
 ### Todo
     - metric
     - batch
-    - count
     - simple join,may be no need
+    - group by
+    - fix order by
