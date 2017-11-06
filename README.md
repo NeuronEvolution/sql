@@ -6,10 +6,11 @@
     - log
     - transaction
     - extendable
+    - where
     - count
+    - group by
+    - order by
 ### Todo
     - metric
     - batch
     - simple join,may be no need
-    - group by
-    - fix order by
