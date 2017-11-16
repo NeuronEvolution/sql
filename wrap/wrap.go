@@ -32,9 +32,9 @@ func Open(driverName, dataSourceName string) (*DB, error) {
 	return db, err
 }
 
-func (db *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
-	db.logger.Info("DB.BeginTx", zap.Any("ctx", ctx), zap.Any("opts", opts))
-	tx, err := db.db.BeginTx(ctx, opts)
+func (db *DB) BeginReadCommittedTx(ctx context.Context, readonly bool) (*Tx, error) {
+	db.logger.Info("DB.BeginReadCommittedTx", zap.Any("ctx", ctx), zap.Any("readonly", readonly))
+	tx, err := db.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted, ReadOnly: readonly})
 	if err != nil {
 		db.logger.Error("sqlDriver", zap.Error(err))
 		return nil, err
@@ -51,7 +51,7 @@ func (db *DB) Prepare(ctx context.Context, query string) (*Stmt, error) {
 		return nil, err
 	}
 
-	return &Stmt{db: db, stmt: stmt}, nil
+	return &Stmt{db: db, stmt: stmt, query: query}, nil
 }
 
 func (db *DB) Query(ctx context.Context, query string, args ...interface{}) (*Rows, error) {
@@ -134,12 +134,12 @@ func (tx *Tx) Prepare(ctx context.Context, query string) (*Stmt, error) {
 		return nil, err
 	}
 
-	return &Stmt{db: tx.db, stmt: stmt}, nil
+	return &Stmt{db: tx.db, stmt: stmt, query: query}, nil
 }
 
 func (tx *Tx) Stmt(ctx context.Context, stmt *Stmt) *Stmt {
 	tx.db.logger.Info("Tx.Stmt", zap.Any("ctx", ctx), zap.Any("stmt", stmt))
-	return &Stmt{db: tx.db, stmt: tx.tx.Stmt(stmt.stmt)}
+	return &Stmt{db: tx.db, stmt: tx.tx.Stmt(stmt.stmt), query: stmt.query}
 }
 
 func (tx *Tx) Exec(ctx context.Context, query string, args ...interface{}) (*Result, error) {
@@ -170,8 +170,9 @@ func (tx *Tx) QueryRow(ctx context.Context, query string, args ...interface{}) *
 }
 
 type Stmt struct {
-	db   *DB
-	stmt *sql.Stmt
+	db    *DB
+	stmt  *sql.Stmt
+	query string
 }
 
 func (s *Stmt) Close() error {
@@ -179,7 +180,7 @@ func (s *Stmt) Close() error {
 }
 
 func (s *Stmt) Exec(ctx context.Context, args ...interface{}) (*Result, error) {
-	s.db.logger.Info("Stmt.Exec", zap.Any("ctx", ctx), zap.String("query", fmt.Sprint(args...)))
+	s.db.logger.Info("Stmt.Exec", zap.Any("ctx", ctx), zap.String("stmt", s.query), zap.String("query", fmt.Sprint(args...)))
 	result, err := s.stmt.ExecContext(ctx, args...)
 	if err != nil {
 		s.db.logger.Error("sqlDriver", zap.Error(err))
@@ -190,7 +191,7 @@ func (s *Stmt) Exec(ctx context.Context, args ...interface{}) (*Result, error) {
 }
 
 func (s *Stmt) Query(ctx context.Context, args ...interface{}) (*Rows, error) {
-	s.db.logger.Info("Stmt.Query", zap.Any("ctx", ctx), zap.String("query", fmt.Sprint(args...)))
+	s.db.logger.Info("Stmt.Query", zap.Any("ctx", ctx), zap.String("stmt", s.query), zap.String("query", fmt.Sprint(args...)))
 	rows, err := s.stmt.QueryContext(ctx, args...)
 	if err != nil {
 		s.db.logger.Error("sqlDriver", zap.Error(err))
@@ -200,7 +201,7 @@ func (s *Stmt) Query(ctx context.Context, args ...interface{}) (*Rows, error) {
 }
 
 func (s *Stmt) QueryRow(ctx context.Context, args ...interface{}) *Row {
-	s.db.logger.Info("Stmt.QueryRow", zap.Any("ctx", ctx), zap.String("query", fmt.Sprint(args...)))
+	s.db.logger.Info("Stmt.QueryRow", zap.Any("ctx", ctx), zap.String("stmt", s.query), zap.String("query", fmt.Sprint(args...)))
 	row := s.stmt.QueryRowContext(ctx, args...)
 	return &Row{db: s.db, row: row}
 }

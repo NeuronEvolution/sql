@@ -63,8 +63,6 @@ func (g *Generator) genEntity(t *Table) {
 			g.Pn("    %s %s", v.GoName, v.GoType)
 		}
 	}
-	g.Pn("")
-	g.Pn("    GROUP_BY_COUNT int64")
 	g.Pn("}")
 	g.Pn("")
 }
@@ -314,7 +312,7 @@ func (g *Generator) genSelectList(t *Table) {
 
 func (g *Generator) genSelectCount(t *Table) {
 	g.Pn("func (dao *%sDao) QueryCount(ctx context.Context, tx *wrap.Tx, query string) (count int64, err error) {", t.GoName)
-	g.Pn("querySql := \"SELECT COUNT 1 FROM %s \" + query", t.DbName)
+	g.Pn("querySql := \"SELECT COUNT(1) FROM %s \" + query", t.DbName)
 	g.Pn("var row *wrap.Row")
 	g.Pn("if tx == nil {")
 	g.Pn("    row = dao.db.QueryRow(ctx, querySql)")
@@ -562,7 +560,7 @@ func (g *Generator) genBaseQuery() {
 	g.Pn("}")
 	g.Pn("")
 	g.Pn("	if q.order != \"\" {")
-	g.Pn("    buf.WriteString(\"order by \")")
+	g.Pn("    buf.WriteString(\" order by \")")
 	g.Pn("    buf.WriteString(q.order)")
 	g.Pn("}")
 	g.Pn("")
