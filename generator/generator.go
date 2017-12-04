@@ -74,6 +74,11 @@ func (g *Generator) genPrepareInsertStmt(t *Table) {
 		if v.AutoIncrement {
 			continue
 		}
+
+		if v.DbName == "create_time" || v.DbName == "update_time" {
+			continue
+		}
+
 		fieldNames = append(fieldNames, v.DbName)
 		fieldValues = append(fieldValues, "?")
 	}
@@ -94,11 +99,19 @@ func (g *Generator) genPrepareUpdateStmt(t *Table) {
 		if v == t.PrimaryColumn {
 			continue
 		}
+
+		if v.DbName == "create_time" || v.DbName == "update_time" {
+			continue
+		}
+
 		fieldNames = append(fieldNames, v.DbName+"=?")
 	}
 
 	g.Pn("func (dao *%sDao) prepareUpdateStmt() (err error){", t.GoName)
-	g.Pn("    dao.updateStmt,err=dao.db.Prepare(context.Background(),\"UPDATE %s SET %s WHERE %s=?\")", t.DbName, strings.Join(fieldNames, ","), t.PrimaryColumn.DbName)
+	g.Pn("    dao.updateStmt,err=dao.db.Prepare(context.Background(),\"UPDATE %s SET %s WHERE %s=?\")",
+		t.DbName,
+		strings.Join(fieldNames, ","),
+		t.PrimaryColumn.DbName)
 	g.Pn("    return err")
 	g.Pn("}")
 	g.Pn("")
@@ -163,6 +176,11 @@ func (g *Generator) genInsert(t *Table) {
 		if v.AutoIncrement {
 			continue
 		}
+
+		if v.DbName == "create_time" || v.DbName == "update_time" {
+			continue
+		}
+
 		insertParams = append(insertParams, "e."+v.GoName)
 	}
 
@@ -193,7 +211,12 @@ func (g *Generator) genUpdate(t *Table) {
 		if t.PrimaryColumn == v {
 			continue
 		}
-		updateParams = append(updateParams, "e."+v.GoName)
+
+		if v.DbName == "create_time" || v.DbName == "update_time" {
+			continue
+		}
+
+		updateParams = append(updateParams, "e."+v.GoName+",")
 	}
 
 	g.Pn("func (dao *%sDao)Update(ctx context.Context,tx *wrap.Tx,e *%s)(err error){", t.GoName, t.GoName)
@@ -202,7 +225,7 @@ func (g *Generator) genUpdate(t *Table) {
 	g.Pn("        stmt=tx.Stmt(ctx,stmt)")
 	g.Pn("    }")
 	g.Pn("")
-	g.Pn("    _,err=stmt.Exec(ctx,%s,e.%s)", strings.Join(updateParams, ","), t.PrimaryColumn.GoName)
+	g.Pn("    _,err=stmt.Exec(ctx,%se.%s)", strings.Join(updateParams, ""), t.PrimaryColumn.GoName)
 	g.Pn("    if err!=nil{")
 	g.Pn("        return err")
 	g.Pn("    }")

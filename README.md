@@ -14,4 +14,3 @@
     - metric
     - batch
     - simple join,may be no need
-    - order one by one
