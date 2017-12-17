@@ -1,3 +1,9 @@
+### Todo
+    - metric
+    - batch
+    - simple join,may be no need
+    - upgrade ddl shell
+
 ### Attention
     - mysql connection string with ?parseTime=true
 ### Feather
@@ -10,7 +16,3 @@
     - count
     - group by
     - order by
-### Todo
-    - metric
-    - batch
-    - simple join,may be no need

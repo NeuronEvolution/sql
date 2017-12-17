@@ -1,10 +1,12 @@
 package wrap
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"go.uber.org/zap"
 )
 
@@ -219,7 +221,12 @@ func (s *Stmt) Close() error {
 }
 
 func (s *Stmt) Exec(ctx context.Context, args ...interface{}) (*Result, error) {
-	s.db.logger.Info("Stmt.Exec", zap.Any("ctx", ctx.Err()), zap.String("stmt", s.query), zap.String("query", fmt.Sprint(args...)))
+	buf := bytes.NewBufferString("")
+	for _, v := range args {
+		buf.WriteString(fmt.Sprint(v) + " ")
+	}
+
+	s.db.logger.Info("Stmt.Exec", zap.Any("ctx", ctx.Err()), zap.String("stmt", s.query), zap.String("query", buf.String()))
 	result, err := s.stmt.ExecContext(ctx, args...)
 	if err != nil {
 		s.db.logger.Error("sqlDriver", zap.Error(err))
@@ -230,7 +237,12 @@ func (s *Stmt) Exec(ctx context.Context, args ...interface{}) (*Result, error) {
 }
 
 func (s *Stmt) Query(ctx context.Context, args ...interface{}) (*Rows, error) {
-	s.db.logger.Info("Stmt.Query", zap.Any("ctx", ctx.Err()), zap.String("stmt", s.query), zap.String("query", fmt.Sprint(args...)))
+	buf := bytes.NewBufferString("")
+	for _, v := range args {
+		buf.WriteString(fmt.Sprint(v) + " ")
+	}
+
+	s.db.logger.Info("Stmt.Query", zap.Any("ctx", ctx.Err()), zap.String("stmt", s.query), zap.String("query", buf.String()))
 	rows, err := s.stmt.QueryContext(ctx, args...)
 	if err != nil {
 		s.db.logger.Error("sqlDriver", zap.Error(err))
@@ -240,7 +252,12 @@ func (s *Stmt) Query(ctx context.Context, args ...interface{}) (*Rows, error) {
 }
 
 func (s *Stmt) QueryRow(ctx context.Context, args ...interface{}) *Row {
-	s.db.logger.Info("Stmt.QueryRow", zap.Any("ctx", ctx.Err()), zap.String("stmt", s.query), zap.String("query", fmt.Sprint(args...)))
+	buf := bytes.NewBufferString("")
+	for _, v := range args {
+		buf.WriteString(fmt.Sprint(v) + " ")
+	}
+
+	s.db.logger.Info("Stmt.QueryRow", zap.Any("ctx", ctx.Err()), zap.String("stmt", s.query), zap.String("query", buf.String()))
 	row := s.stmt.QueryRowContext(ctx, args...)
 	return &Row{db: s.db, row: row}
 }
