@@ -94,6 +94,8 @@ func (g *Generator) genPrepareInsertStmt(t *Table) {
 }
 
 func (g *Generator) genPrepareUpdateStmt(t *Table) {
+	var where = fmt.Sprintf("WHERE %s=?", t.PrimaryColumn.DbName)
+
 	var fieldNames []string
 	for _, v := range t.ColumnList {
 		if v == t.PrimaryColumn {
@@ -104,14 +106,20 @@ func (g *Generator) genPrepareUpdateStmt(t *Table) {
 			continue
 		}
 
+		if v.DbName == "update_version" {
+			fieldNames = append(fieldNames, "update_version=update_version+1")
+			where = where + " AND update_version=?"
+			continue
+		}
+
 		fieldNames = append(fieldNames, v.DbName+"=?")
 	}
 
 	g.Pn("func (dao *%sDao) prepareUpdateStmt() (err error){", t.GoName)
-	g.Pn("    dao.updateStmt,err=dao.db.Prepare(context.Background(),\"UPDATE %s SET %s WHERE %s=?\")",
+	g.Pn("    dao.updateStmt,err=dao.db.Prepare(context.Background(),\"UPDATE %s SET %s %s\")",
 		t.DbName,
 		strings.Join(fieldNames, ","),
-		t.PrimaryColumn.DbName)
+		where)
 	g.Pn("    return err")
 	g.Pn("}")
 	g.Pn("")
@@ -206,6 +214,7 @@ func (g *Generator) genInsert(t *Table) {
 }
 
 func (g *Generator) genUpdate(t *Table) {
+	var updateVersionColume *Column
 	var updateParams []string
 	for _, v := range t.ColumnList {
 		if t.PrimaryColumn == v {
@@ -213,6 +222,11 @@ func (g *Generator) genUpdate(t *Table) {
 		}
 
 		if v.DbName == "create_time" || v.DbName == "update_time" {
+			continue
+		}
+
+		if v.DbName == "update_version" {
+			updateVersionColume = v
 			continue
 		}
 
@@ -225,7 +239,11 @@ func (g *Generator) genUpdate(t *Table) {
 	g.Pn("        stmt=tx.Stmt(ctx,stmt)")
 	g.Pn("    }")
 	g.Pn("")
-	g.Pn("    _,err=stmt.Exec(ctx,%se.%s)", strings.Join(updateParams, ""), t.PrimaryColumn.GoName)
+	if updateVersionColume != nil {
+		g.Pn("    _,err=stmt.Exec(ctx,%se.%s,e.%s)", strings.Join(updateParams, ""), t.PrimaryColumn.GoName, updateVersionColume.GoName)
+	} else {
+		g.Pn("    _,err=stmt.Exec(ctx,%se.%s)", strings.Join(updateParams, ""), t.PrimaryColumn.GoName)
+	}
 	g.Pn("    if err!=nil{")
 	g.Pn("        return err")
 	g.Pn("    }")
@@ -476,12 +494,12 @@ func (g *Generator) genQuery(t *Table) {
 	g.Pn("")
 
 	for _, c := range t.ColumnList {
-		g.Pn("func (q *%sQuery)%s_Equal(v %s)*%sQuery{return q.w(\"%s='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoType, t.GoName, c.DbName)
-		g.Pn("func (q *%sQuery)%s_NotEqual(v %s)*%sQuery{return q.w(\"%s<>'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoType, t.GoName, c.DbName)
-		g.Pn("func (q *%sQuery)%s_Less(v %s)*%sQuery{return q.w(\"%s<'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoType, t.GoName, c.DbName)
-		g.Pn("func (q *%sQuery)%s_LessEqual(v %s)*%sQuery{return q.w(\"%s<='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoType, t.GoName, c.DbName)
-		g.Pn("func (q *%sQuery)%s_Greater(v %s)*%sQuery{return q.w(\"%s>'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoType, t.GoName, c.DbName)
-		g.Pn("func (q *%sQuery)%s_GreaterEqual(v %s)*%sQuery{return q.w(\"%s>='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoType, t.GoName, c.DbName)
+		g.Pn("func (q *%sQuery)%s_Equal(v %s)*%sQuery{return q.w(\"%s='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+		g.Pn("func (q *%sQuery)%s_NotEqual(v %s)*%sQuery{return q.w(\"%s<>'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+		g.Pn("func (q *%sQuery)%s_Less(v %s)*%sQuery{return q.w(\"%s<'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+		g.Pn("func (q *%sQuery)%s_LessEqual(v %s)*%sQuery{return q.w(\"%s<='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+		g.Pn("func (q *%sQuery)%s_Greater(v %s)*%sQuery{return q.w(\"%s>'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+		g.Pn("func (q *%sQuery)%s_GreaterEqual(v %s)*%sQuery{return q.w(\"%s>='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
 	}
 	g.Pn("")
 }
@@ -614,10 +632,14 @@ func (g *Generator) gen() {
 	g.Pn("    \"time\"")
 	g.Pn("    \"strings\"")
 	g.Pn("    \"context\"")
+	g.Pn("    \"database/sql\"")
 	g.Pn("    \"github.com/NeuronFramework/sql/wrap\"")
-	g.Pn("    _ \"github.com/go-sql-driver/mysql\"")
+	g.Pn("     \"github.com/go-sql-driver/mysql\"")
 	g.Pn(")")
 	g.Pn("")
+
+	g.Pn("var _ =sql.ErrNoRows")
+	g.Pn("var _ =mysql.ErrOldProtocol")
 
 	g.genBaseQuery()
 

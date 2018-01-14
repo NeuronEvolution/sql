@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
+	"github.com/NeuronFramework/errors"
 	_ "github.com/go-sql-driver/mysql"
 	"go.uber.org/zap"
 )
 
-var ErrNoRows = errors.New("sql: no rows in result set")
+var ErrNoRows = fmt.Errorf("sql: no rows in result set")
 
 type DB struct {
 	logger *zap.Logger
@@ -22,63 +22,43 @@ func Open(driverName, dataSourceName string) (*DB, error) {
 	db.logger = zap.L().Named("db")
 
 	db.logger.Info("Open", zap.String("driverName", driverName), zap.String("dataSourceName", dataSourceName))
-
 	sqlDB, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
-		db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		db.logger.Error("Open", zap.Error(err))
+		return nil, errors.Wrap(err)
 	}
 	db.db = sqlDB
 
 	return db, err
 }
 
-func (db *DB) beginReadCommittedTx(ctx context.Context, readonly bool) (*Tx, error) {
-	db.logger.Info("DB.BeginReadCommittedTx", zap.Any("ctx", ctx.Err()), zap.Any("readonly", readonly))
+func (db *DB) TransactionReadCommitted(ctx context.Context, readonly bool, f func(tx *Tx) (err error)) (err error) {
+	db.logger.Info("Begin")
 	tx, err := db.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted, ReadOnly: readonly})
 	if err != nil {
-		db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		db.logger.Error("DB.ReadCommittedTransaction", zap.Error(err))
+		return errors.Wrap(err)
 	}
 
-	return &Tx{db: db, tx: tx}, nil
-}
+	defer func() {
+		db.logger.Info("Rollback")
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil {
+			db.logger.Error("Rollback", zap.Error(rollbackErr))
+		}
+	}()
 
-func (db *DB) TransactionReadCommittedReadOnly(ctx context.Context, f func(tx *Tx) (err error)) (err error) {
-	tx, err := db.beginReadCommittedTx(ctx, true)
+	err = f(&Tx{db: db, tx: tx})
 	if err != nil {
+		db.logger.Info("transaction exec failed", zap.Error(err))
 		return err
 	}
-	defer tx.Rollback()
 
-	err = f(tx)
-	if err != nil {
-		return err
-	}
-
+	db.logger.Info("Commit")
 	err = tx.Commit()
 	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (db *DB) TransactionReadCommitted(ctx context.Context, f func(tx *Tx) (err error)) (err error) {
-	tx, err := db.beginReadCommittedTx(ctx, false)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = f(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
+		db.logger.Error("Commit", zap.Error(err))
+		return errors.Wrap(err)
 	}
 
 	return nil
@@ -88,8 +68,8 @@ func (db *DB) Prepare(ctx context.Context, query string) (*Stmt, error) {
 	db.logger.Info("DB.Prepare", zap.Any("ctx", ctx.Err()), zap.String("query", query))
 	stmt, err := db.db.PrepareContext(ctx, query)
 	if err != nil {
-		db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		db.logger.Error("DB.Prepare", zap.Error(err))
+		return nil, errors.Wrap(err)
 	}
 
 	return &Stmt{db: db, stmt: stmt, query: query}, nil
@@ -99,8 +79,8 @@ func (db *DB) Query(ctx context.Context, query string, args ...interface{}) (*Ro
 	db.logger.Info("DB.Query", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
 	rows, err := db.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		db.logger.Error("DB.Query", zap.Error(err))
+		return nil, errors.Wrap(err)
 	}
 
 	return &Rows{db: db, rows: rows}, nil
@@ -116,8 +96,8 @@ func (db *DB) Exec(ctx context.Context, query string, args ...interface{}) (*Res
 	db.logger.Info("DB.Exec", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
 	result, err := db.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		db.logger.Error("DB.Exec", zap.Error(err))
+		return nil, errors.Wrap(err)
 	}
 
 	return &Result{db: db, result: result}, err
@@ -130,49 +110,26 @@ func (db *DB) Close() error {
 
 func (db *DB) Ping(ctx context.Context) error {
 	db.logger.Info("DB.Ping")
-	return db.db.PingContext(ctx)
+	err := db.db.PingContext(ctx)
+	if err != nil {
+		db.logger.Error("DB.Ping", zap.Error(err))
+		return errors.Wrap(err)
+	}
+
+	return nil
 }
 
 type Tx struct {
-	db        *DB
-	tx        *sql.Tx
-	committed bool
-}
-
-func (tx *Tx) Commit() error {
-	tx.committed = true
-
-	tx.db.logger.Info("Tx.Commit")
-	err := tx.tx.Commit()
-	if err != nil {
-		tx.db.logger.Error("sqlDriver", zap.Error(err))
-		return err
-	}
-
-	return nil
-}
-
-func (tx *Tx) Rollback() error {
-	if tx.committed {
-		return nil
-	}
-
-	tx.db.logger.Info("Tx.Rollback")
-	err := tx.tx.Rollback()
-	if err != nil {
-		tx.db.logger.Error("sqlDriver", zap.Error(err))
-		return err
-	}
-
-	return nil
+	db *DB
+	tx *sql.Tx
 }
 
 func (tx *Tx) Prepare(ctx context.Context, query string) (*Stmt, error) {
 	tx.db.logger.Info("Tx.Prepare", zap.Any("ctx", ctx.Err()), zap.String("query", query))
 	stmt, err := tx.tx.PrepareContext(ctx, query)
 	if err != nil {
-		tx.db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		tx.db.logger.Error("Tx.Prepare", zap.Error(err))
+		return nil, errors.Wrap(err)
 	}
 
 	return &Stmt{db: tx.db, stmt: stmt, query: query}, nil
@@ -187,8 +144,8 @@ func (tx *Tx) Exec(ctx context.Context, query string, args ...interface{}) (*Res
 	tx.db.logger.Info("Tx.Exec", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
 	result, err := tx.tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		tx.db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		tx.db.logger.Error("Tx.Exec", zap.Error(err))
+		return nil, errors.Wrap(err)
 	}
 
 	return &Result{db: tx.db, result: result}, nil
@@ -198,8 +155,8 @@ func (tx *Tx) Query(ctx context.Context, query string, args ...interface{}) (*Ro
 	tx.db.logger.Info("Tx.Query", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
 	rows, err := tx.tx.QueryContext(ctx, query, args...)
 	if err != nil {
-		tx.db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		tx.db.logger.Error("Tx.Query", zap.Error(err))
+		return nil, errors.Wrap(err)
 	}
 
 	return &Rows{db: tx.db, rows: rows}, nil
@@ -217,7 +174,13 @@ type Stmt struct {
 }
 
 func (s *Stmt) Close() error {
-	return s.stmt.Close()
+	err := s.stmt.Close()
+	if err != nil {
+		s.db.logger.Error("Stmt.Close", zap.Error(err))
+		return errors.Wrap(err)
+	}
+
+	return nil
 }
 
 func (s *Stmt) Exec(ctx context.Context, args ...interface{}) (*Result, error) {
@@ -229,8 +192,8 @@ func (s *Stmt) Exec(ctx context.Context, args ...interface{}) (*Result, error) {
 	s.db.logger.Info("Stmt.Exec", zap.Any("ctx", ctx.Err()), zap.String("stmt", s.query), zap.String("query", buf.String()))
 	result, err := s.stmt.ExecContext(ctx, args...)
 	if err != nil {
-		s.db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		s.db.logger.Error("Stmt.Exec", zap.Error(err))
+		return nil, errors.Wrap(err)
 	}
 
 	return &Result{db: s.db, result: result}, nil
@@ -239,14 +202,14 @@ func (s *Stmt) Exec(ctx context.Context, args ...interface{}) (*Result, error) {
 func (s *Stmt) Query(ctx context.Context, args ...interface{}) (*Rows, error) {
 	buf := bytes.NewBufferString("")
 	for _, v := range args {
-		buf.WriteString(fmt.Sprint(v) + " ")
+		buf.WriteString(fmt.Sprint(v) + ",")
 	}
 
 	s.db.logger.Info("Stmt.Query", zap.Any("ctx", ctx.Err()), zap.String("stmt", s.query), zap.String("query", buf.String()))
 	rows, err := s.stmt.QueryContext(ctx, args...)
 	if err != nil {
-		s.db.logger.Error("sqlDriver", zap.Error(err))
-		return nil, err
+		s.db.logger.Error("Stmt.Query", zap.Error(err))
+		return nil, errors.Wrap(err)
 	}
 	return &Rows{db: s.db, rows: rows}, nil
 }
@@ -254,7 +217,7 @@ func (s *Stmt) Query(ctx context.Context, args ...interface{}) (*Rows, error) {
 func (s *Stmt) QueryRow(ctx context.Context, args ...interface{}) *Row {
 	buf := bytes.NewBufferString("")
 	for _, v := range args {
-		buf.WriteString(fmt.Sprint(v) + " ")
+		buf.WriteString(fmt.Sprint(v) + ",")
 	}
 
 	s.db.logger.Info("Stmt.QueryRow", zap.Any("ctx", ctx.Err()), zap.String("stmt", s.query), zap.String("query", buf.String()))
@@ -268,13 +231,13 @@ type Rows struct {
 }
 
 func (r *Rows) Err() error {
-	if r.rows.Err() != nil {
-		r.db.logger.Error("sqlDriver", zap.Error(r.rows.Err()))
+	err := r.rows.Err()
+	if err != nil {
+		r.db.logger.Error("Rows.Err", zap.Error(err))
+		errors.Wrap(err)
 	}
 
-	r.rows.Next()
-
-	return r.rows.Err()
+	return nil
 }
 
 func (r *Rows) Next() bool {
@@ -288,9 +251,8 @@ func (r *Rows) Scan(dest ...interface{}) error {
 			return ErrNoRows
 		}
 
-		r.db.logger.Error("sqlDriver", zap.Error(err))
-
-		return err
+		r.db.logger.Error("Rows.Scan", zap.Error(err))
+		return errors.Wrap(err)
 	}
 
 	return nil
@@ -308,9 +270,8 @@ func (r *Row) Scan(dest ...interface{}) error {
 			return ErrNoRows
 		}
 
-		r.db.logger.Error("sqlDriver", zap.Error(err))
-
-		return err
+		r.db.logger.Error("Row.Scan", zap.Error(err))
+		return errors.Wrap(err)
 	}
 
 	return nil
@@ -324,8 +285,8 @@ type Result struct {
 func (r *Result) LastInsertId() (int64, error) {
 	n, err := r.result.LastInsertId()
 	if err != nil {
-		r.db.logger.Info("LastInsertId", zap.Error(err))
-		return 0, err
+		r.db.logger.Error("Result.LastInsertId", zap.Error(err))
+		return 0, errors.Wrap(err)
 	}
 
 	return n, nil
@@ -333,8 +294,8 @@ func (r *Result) LastInsertId() (int64, error) {
 func (r *Result) RowsAffected() (int64, error) {
 	n, err := r.result.RowsAffected()
 	if err != nil {
-		r.db.logger.Info("RowsAffected", zap.Error(err))
-		return 0, err
+		r.db.logger.Error("Result.RowsAffected", zap.Error(err))
+		return 0, errors.Wrap(err)
 	}
 
 	return n, nil

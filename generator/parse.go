@@ -28,27 +28,61 @@ func goName(name string) (goName string) {
 	return goName
 }
 
-func goType(typ string) (goType string) {
+func goType(typ string, notNull bool, unsigned bool) (goType string, goTypeReal string) {
 	if typ == "bigint" {
-		return "int64"
-	} else if typ == "varchar" {
-		return "string"
-	} else if typ == "int" {
-		return "int32"
-	} else if typ == "datetime" {
-		return "time.Time"
-	} else if typ == "timestamp" {
-		return "time.Time"
-	} else if typ == "tinyint" {
-		return "int32"
-	} else if typ == "longtext" {
-		return "string"
-	} else if typ == "float" {
-		return "float32"
+		if notNull {
+			if unsigned {
+				return "uint64", "uint64"
+			} else {
+				return "int64", "int64"
+			}
+		} else {
+			if unsigned {
+				return "sql.NullUint64", "uint64"
+			} else {
+				return "sql.NullInt64", "int64"
+			}
+		}
+	} else if typ == "int" || typ == "tinyint" {
+		if notNull {
+			if unsigned {
+				return "uint32", "uint32"
+			} else {
+				return "int32", "int32"
+			}
+		} else {
+			if unsigned {
+				return "sql.NullUint64", "uint32"
+			} else {
+				return "sql.NullInt64", "int32"
+			}
+		}
+	} else if typ == "varchar" || typ == "longtext" {
+		if notNull {
+			return "string", "string"
+		} else {
+			return "sql.NullString", "string"
+		}
+	} else if typ == "datetime" || typ == "timestamp" {
+		if notNull {
+			return "time.Time", "time.Time"
+		} else {
+			return "mysql.NullTime", "time.Time"
+		}
 	} else if typ == "double" {
-		return "float64"
+		if notNull {
+			return "float64", "float64"
+		} else {
+			return "sql.NullFloat64", "float64"
+		}
+	} else if typ == "float" {
+		if notNull {
+			return "float32", "float32"
+		} else {
+			return "sql.NullFloat64", "float32"
+		}
 	} else {
-		return typ
+		return typ, typ
 	}
 }
 
@@ -66,7 +100,10 @@ func (g *Generator) parseColumnLine(line string) (c *Column, err error) {
 		c.Size = sizeString
 	}
 
-	c.GoType = goType(c.DbType)
+	notNull := strings.Contains(line, "NOT NULL")
+	unsigned := strings.Contains(line, "unsigned")
+
+	c.GoType, c.GoTypeReal = goType(c.DbType, notNull, unsigned)
 	c.AutoIncrement = strings.Contains(line, "AUTO_INCREMENT")
 
 	return c, nil

@@ -4,7 +4,8 @@ type Column struct {
 	DbName        string
 	GoName        string
 	DbType        string
-	GoType        string
+	GoType        string //may be NULL
+	GoTypeReal    string
 	Size          string
 	AutoIncrement bool
 }
@@ -31,13 +32,13 @@ type Table struct {
 	UniqueUnionIndexList []*UnionIndex
 }
 
-func newTable()(t *Table) {
+func newTable() (t *Table) {
 	t = &Table{}
 	t.ColumnList = make([]*Column, 0)
 
 	return t
 }
 
-func (t *Table)AddColumn(c *Column) {
+func (t *Table) AddColumn(c *Column) {
 	t.ColumnList = append(t.ColumnList, c)
 }
