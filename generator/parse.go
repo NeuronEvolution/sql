@@ -100,10 +100,10 @@ func (g *Generator) parseColumnLine(line string) (c *Column, err error) {
 		c.Size = sizeString
 	}
 
-	notNull := strings.Contains(line, "NOT NULL")
-	unsigned := strings.Contains(line, "unsigned")
+	c.NotNull = strings.Contains(line, "NOT NULL")
+	c.Unsigned = strings.Contains(line, "unsigned")
 
-	c.GoType, c.GoTypeReal = goType(c.DbType, notNull, unsigned)
+	c.GoType, c.GoTypeReal = goType(c.DbType, c.NotNull, c.Unsigned)
 	c.AutoIncrement = strings.Contains(line, "AUTO_INCREMENT")
 
 	return c, nil

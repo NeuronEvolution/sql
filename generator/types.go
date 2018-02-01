@@ -8,6 +8,8 @@ type Column struct {
 	GoTypeReal    string
 	Size          string
 	AutoIncrement bool
+	NotNull       bool
+	Unsigned      bool
 }
 
 type Index struct {

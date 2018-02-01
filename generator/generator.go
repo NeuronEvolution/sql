@@ -150,6 +150,7 @@ func (g *Generator) genDaoInit(t *Table) {
 
 	g.Pn("   return nil")
 	g.Pn("}")
+	g.Pn("")
 }
 
 func (g *Generator) genDaoDef(t *Table) {
@@ -500,6 +501,10 @@ func (g *Generator) genQuery(t *Table) {
 		g.Pn("func (q *%sQuery)%s_LessEqual(v %s)*%sQuery{return q.w(\"%s<='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
 		g.Pn("func (q *%sQuery)%s_Greater(v %s)*%sQuery{return q.w(\"%s>'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
 		g.Pn("func (q *%sQuery)%s_GreaterEqual(v %s)*%sQuery{return q.w(\"%s>='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+		if !c.NotNull {
+			g.Pn("func (q *%sQuery)%s_IsNull()*%sQuery{return q.w(\"%s IS NULL\")}", t.GoName, c.GoName, t.GoName, c.DbName)
+			g.Pn("func (q *%sQuery)%s_NotNull()*%sQuery{return q.w(\"%s IS NOT NULL\")}", t.GoName, c.GoName, t.GoName, c.DbName)
+		}
 	}
 	g.Pn("")
 }
