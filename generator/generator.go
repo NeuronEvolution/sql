@@ -9,6 +9,7 @@ import (
 
 type Generator struct {
 	Namespace string
+	DbName    string
 	TableList []*Table
 
 	buf *bytes.Buffer
@@ -552,13 +553,14 @@ func (g *Generator) genDatabase() {
 	g.Pn("")
 
 	//new
-	g.Pn("func NewDB(connectionString string) (d *DB, err error) {")
-	g.Pn("if connectionString == \"\" {")
-	g.Pn("	return nil, fmt.Errorf(\"connectionString nil\")")
-	g.Pn("}")
+	g.Pn("func NewDB() (d *DB, err error) {")
+	g.Pn("    d = &DB{}")
 	g.Pn("")
-	g.Pn("d = &DB{}")
-	g.Pn("")
+	g.Pn("    connectionString := os.Getenv(\"DB\")")
+	g.Pn("    if connectionString == \"\" {")
+	g.Pn("	      return nil, fmt.Errorf(\"DB env nil\")")
+	g.Pn("    }")
+	g.Pn("    connectionString+=\"/%s?parseTime=true\"", g.DbName)
 	g.Pn("db, err := wrap.Open(\"mysql\", connectionString)")
 	g.Pn("if err != nil {")
 	g.Pn("	return nil, err")
@@ -634,6 +636,7 @@ func (g *Generator) gen() {
 	g.Pn("    \"github.com/NeuronFramework/log\"")
 	g.Pn("    \"bytes\"")
 	g.Pn("    \"fmt\"")
+	g.Pn("    \"os\"")
 	g.Pn("    \"time\"")
 	g.Pn("    \"strings\"")
 	g.Pn("    \"context\"")

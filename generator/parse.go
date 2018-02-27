@@ -211,7 +211,10 @@ func (g *Generator) parseTable(lines []string, i *int) (t *Table, err error) {
 func (g *Generator) parse(sql string) error {
 	lines := strings.Split(sql, "\n")
 	for i := 0; i < len(lines); i++ {
-		if strings.HasPrefix(lines[i], "CREATE TABLE ") {
+		if strings.Contains(lines[i], "Database: ") {
+			tokens := strings.Split(lines[i], " ")
+			g.DbName = tokens[len(tokens)-1]
+		} else if strings.HasPrefix(lines[i], "CREATE TABLE ") {
 			table, err := g.parseTable(lines, &i)
 			if err != nil {
 				return err
