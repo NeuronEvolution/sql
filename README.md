@@ -6,6 +6,7 @@ docker run --name mysql -p 3307:3306 -e MYSQL_ROOT_PASSWORD=123456 -v /Users/god
     - batch
     - simple join,may be no need
     - upgrade ddl shell
+    - partial update
 
 ### Attention
     - mysql connection string with ?parseTime=true

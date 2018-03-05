@@ -510,6 +510,10 @@ func (g *Generator) genQuery(t *Table) {
 	g.Pn("")
 }
 
+func (g *Generator) genPartialUpdate(t *Table) {
+
+}
+
 func (g *Generator) genDao(t *Table) {
 	g.genConstants(t)
 
@@ -535,6 +539,7 @@ func (g *Generator) genDao(t *Table) {
 	g.genSelectList(t)
 	g.genSelectCount(t)
 	g.genSelectGroupBy(t)
+	g.genPartialUpdate(t)
 
 	g.Pn("func (dao *%sDao)GetQuery()*%sQuery{", t.GoName, t.GoName)
 	g.Pn("    return New%sQuery(dao)", t.GoName)
