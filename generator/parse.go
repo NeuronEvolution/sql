@@ -57,7 +57,7 @@ func goType(typ string, notNull bool, unsigned bool) (goType string, goTypeReal 
 				return "sql.NullInt64", "int32"
 			}
 		}
-	} else if typ == "varchar" || typ == "longtext" {
+	} else if typ == "varchar" || typ == "longtext" || typ == "char" {
 		if notNull {
 			return "string", "string"
 		} else {
@@ -149,7 +149,7 @@ func (g *Generator) parseTable(lines []string, i *int) (t *Table, err error) {
 				return nil, errors.New("primary key not found")
 			}
 		} else if strings.HasPrefix(l, "UNIQUE KEY") {
-			names := l[strings.Index(l, "(`")+2 : strings.LastIndex(l, "`)")]
+			names := l[strings.Index(l, "(`")+2 : strings.LastIndex(l, "`")]
 			if strings.Contains(names, ",") {
 				unionIndex := &UnionIndex{}
 				names = strings.Replace(names, "`", "", -1)
