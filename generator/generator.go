@@ -531,7 +531,7 @@ func (g *Generator) genPartialUpdate(t *Table) {
 	g.Pn("    s:=\"UPDATE %s SET \"+strings.Join(u.keys,\",\")+\" WHERE id=?\"", t.DbName)
 	g.Pn("    v:=append(u.values,id)")
 	g.Pn("    if tx==nil{")
-	g.Pn("        _,err=u.dao.db.Exec(ctx,s,v)")
+	g.Pn("        _,err=u.dao.db.Exec(ctx,s,v...)")
 	g.Pn("    }else{")
 	g.Pn("        _,err=tx.Exec(ctx,s,v)")
 	g.Pn("    }")
