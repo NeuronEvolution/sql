@@ -52,7 +52,6 @@ func (g *Generator) genConstants(t *Table) {
 	g.Pn("")
 	g.Pn("const %s_ALL_FIELDS_STRING =\"%s\"", strings.ToUpper(t.DbName), strings.Join(filedNameList, ","))
 	g.Pn("")
-	g.Pn("var %s_ALL_FIELDS = []string{\n\"%s\",\n}", strings.ToUpper(t.DbName), strings.Join(filedNameList, "\",\n\""))
 }
 
 func (g *Generator) genEntity(t *Table) {
@@ -95,6 +94,10 @@ func (g *Generator) genPrepareInsertStmt(t *Table) {
 }
 
 func (g *Generator) genPrepareUpdateStmt(t *Table) {
+	if t.UpdateTimeColumn == nil {
+		return
+	}
+
 	var where = fmt.Sprintf("WHERE %s=?", t.PrimaryColumn.DbName)
 
 	var fieldNames []string
@@ -146,7 +149,6 @@ func (g *Generator) genDaoInit(t *Table) {
 	g.Pn("func (dao *%sDao) init() (err error){", t.GoName)
 
 	g.genDaoInitPrepareFunc(t, "prepareInsertStmt")
-	g.genDaoInitPrepareFunc(t, "prepareUpdateStmt")
 	g.genDaoInitPrepareFunc(t, "prepareDeleteStmt")
 
 	g.Pn("   return nil")
@@ -159,7 +161,6 @@ func (g *Generator) genDaoDef(t *Table) {
 	g.Pn("    logger *zap.Logger")
 	g.Pn("    db *DB")
 	g.Pn("    insertStmt *wrap.Stmt")
-	g.Pn("    updateStmt *wrap.Stmt")
 	g.Pn("    deleteStmt *wrap.Stmt")
 	g.Pn("}")
 	g.Pn("")
@@ -216,6 +217,10 @@ func (g *Generator) genInsert(t *Table) {
 }
 
 func (g *Generator) genUpdate(t *Table) {
+	if t.UpdateTimeColumn == nil {
+		return
+	}
+
 	var updateVersionColume *Column
 	var updateParams []string
 	for _, v := range t.ColumnList {
@@ -446,44 +451,25 @@ func (g *Generator) genQuery(t *Table) {
 	g.Pn("")
 
 	g.Pn("func (q *%sQuery) Limit(startIncluded int64, count int64) *%sQuery {", t.GoName, t.GoName)
-	g.Pn("	q.limit=fmt.Sprintf(\" limit %%d,%%d\", startIncluded, count)")
+	g.Pn("	q.setLimit(startIncluded,count)")
 	g.Pn("	return q")
 	g.Pn("}")
 	g.Pn("")
 
 	g.Pn("func (q *%sQuery) OrderBy(fieldName %s_FIELD, asc bool) *%sQuery {", t.GoName, strings.ToUpper(t.DbName), t.GoName)
-	g.Pn("    if q.order!=\"\"{")
-	g.Pn("        q.order+=\",\"")
-	g.Pn("    }")
-	g.Pn("    q.order+=string(fieldName)+\" \"")
-	g.Pn("    if asc {")
-	g.Pn("        q.order+=\"asc\"")
-	g.Pn("    } else {")
-	g.Pn("        q.order+=\"desc\"")
-	g.Pn("    }")
-	g.Pn("")
+	g.Pn("    q.orderBy(string(fieldName),asc)")
 	g.Pn("    return q")
 	g.Pn("}")
 	g.Pn("")
 
-	g.Pn("func (q *%sQuery) OrderByGroupCount(asc bool) *%sQuery {",
-		t.GoName, t.GoName)
-	g.Pn("    if q.order!=\"\"{")
-	g.Pn("        q.order+=\",\"")
-	g.Pn("    }")
-	g.Pn("    q.order+=\"count(1) \"")
-	g.Pn("    if asc {")
-	g.Pn("        q.order+=\"asc\"")
-	g.Pn("    } else {")
-	g.Pn("        q.order+=\"desc\"")
-	g.Pn("    }")
-	g.Pn("")
+	g.Pn("func (q *%sQuery) OrderByGroupCount(asc bool) *%sQuery {", t.GoName, t.GoName)
+	g.Pn("    q.orderByGroupCount(asc)")
 	g.Pn("    return q")
 	g.Pn("}")
 	g.Pn("")
 
 	g.Pn("func(q *%sQuery)w(format string,a ...interface{})*%sQuery{", t.GoName, t.GoName)
-	g.Pn("    q.where+=fmt.Sprintf(format,a...)")
+	g.Pn("    q.setWhere(format,a...)")
 	g.Pn("    return q")
 	g.Pn("    }")
 	g.Pn("")
@@ -498,10 +484,14 @@ func (g *Generator) genQuery(t *Table) {
 	for _, c := range t.ColumnList {
 		g.Pn("func (q *%sQuery)%s_Equal(v %s)*%sQuery{return q.w(\"%s='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
 		g.Pn("func (q *%sQuery)%s_NotEqual(v %s)*%sQuery{return q.w(\"%s<>'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
-		g.Pn("func (q *%sQuery)%s_Less(v %s)*%sQuery{return q.w(\"%s<'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
-		g.Pn("func (q *%sQuery)%s_LessEqual(v %s)*%sQuery{return q.w(\"%s<='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
-		g.Pn("func (q *%sQuery)%s_Greater(v %s)*%sQuery{return q.w(\"%s>'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
-		g.Pn("func (q *%sQuery)%s_GreaterEqual(v %s)*%sQuery{return q.w(\"%s>='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+
+		if c.GoTypeReal != "string" {
+			g.Pn("func (q *%sQuery)%s_Less(v %s)*%sQuery{return q.w(\"%s<'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+			g.Pn("func (q *%sQuery)%s_LessEqual(v %s)*%sQuery{return q.w(\"%s<='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+			g.Pn("func (q *%sQuery)%s_Greater(v %s)*%sQuery{return q.w(\"%s>'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+			g.Pn("func (q *%sQuery)%s_GreaterEqual(v %s)*%sQuery{return q.w(\"%s>='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
+		}
+
 		if !c.NotNull {
 			g.Pn("func (q *%sQuery)%s_IsNull()*%sQuery{return q.w(\"%s IS NULL\")}", t.GoName, c.GoName, t.GoName, c.DbName)
 			g.Pn("func (q *%sQuery)%s_NotNull()*%sQuery{return q.w(\"%s IS NOT NULL\")}", t.GoName, c.GoName, t.GoName, c.DbName)
@@ -511,7 +501,65 @@ func (g *Generator) genQuery(t *Table) {
 }
 
 func (g *Generator) genPartialUpdate(t *Table) {
+	if t.UpdateTimeColumn == nil {
+		return
+	}
 
+	g.Pn("type %sUpdate struct{", t.GoName)
+	g.Pn("    dao *%sDao", t.GoName)
+	g.Pn("    keys []string")
+	g.Pn("    values []interface{}")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func New%sUpdate(dao *%sDao)*%sUpdate{", t.GoName, t.GoName, t.GoName)
+	g.Pn("    q:=&%sUpdate{}", t.GoName)
+	g.Pn("    q.dao=dao")
+	g.Pn("    q.keys=make([]string,0)")
+	g.Pn("    q.values=make([]interface{},0)")
+	g.Pn("    ")
+	g.Pn("    return q")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (u *%sUpdate)Update(ctx context.Context,tx *wrap.Tx,id uint64)(err error){", t.GoName)
+	g.Pn("    if len(u.keys)==0{")
+	g.Pn("        err=fmt.Errorf(\"%sUpdate没有设置更新字段\")", t.GoName)
+	g.Pn("        u.dao.logger.Error(\"%sUpdate\",zap.Error(err))", t.GoName)
+	g.Pn("        return err")
+	g.Pn("    }")
+	g.Pn("    s:=\"UPDATE %s SET \"+strings.Join(u.keys,\",\")+\" WHERE id=?\"", t.DbName)
+	g.Pn("    v:=append(u.values,id)")
+	g.Pn("    if tx==nil{")
+	g.Pn("        _,err=u.dao.db.Exec(ctx,s,v)")
+	g.Pn("    }else{")
+	g.Pn("        _,err=tx.Exec(ctx,s,v)")
+	g.Pn("    }")
+	g.Pn("")
+	g.Pn("    if err!=nil{")
+	g.Pn("        return err")
+	g.Pn("    }")
+	g.Pn("")
+	g.Pn("    return nil")
+	g.Pn("}")
+	g.Pn("")
+
+	for _, c := range t.ColumnList {
+		if c == t.PrimaryColumn {
+			continue
+		}
+
+		if c.DbName == "create_time" || c.DbName == "update_time" || c.DbName == "update_version" {
+			continue
+		}
+
+		g.Pn("func (u *%sUpdate)%s(v %s)*%sUpdate{", t.GoName, c.GoName, c.GoTypeReal, t.GoName)
+		g.Pn("    u.keys=append(u.keys,\"%s=?\")", c.DbName)
+		g.Pn("    u.values=append(u.values,v)")
+		g.Pn("    return u")
+		g.Pn("}")
+		g.Pn("")
+	}
 }
 
 func (g *Generator) genDao(t *Table) {
@@ -520,17 +568,16 @@ func (g *Generator) genDao(t *Table) {
 	g.genEntity(t)
 
 	g.genQuery(t)
+	g.genPartialUpdate(t)
 
 	g.genDaoDef(t)
 	g.genDaoNew(t)
 	g.genDaoInit(t)
 
 	g.genPrepareInsertStmt(t)
-	g.genPrepareUpdateStmt(t)
 	g.genPrepareDeleteStmt(t)
 
 	g.genInsert(t)
-	g.genUpdate(t)
 	g.genDelete(t)
 
 	g.genScanRow(t)
@@ -539,12 +586,18 @@ func (g *Generator) genDao(t *Table) {
 	g.genSelectList(t)
 	g.genSelectCount(t)
 	g.genSelectGroupBy(t)
-	g.genPartialUpdate(t)
 
 	g.Pn("func (dao *%sDao)GetQuery()*%sQuery{", t.GoName, t.GoName)
 	g.Pn("    return New%sQuery(dao)", t.GoName)
 	g.Pn("}")
 	g.Pn("")
+
+	if t.UpdateTimeColumn != nil {
+		g.Pn("func (dao *%sDao)GetUpdate()*%sUpdate{", t.GoName, t.GoName)
+		g.Pn("    return New%sUpdate(dao)", t.GoName)
+		g.Pn("}")
+		g.Pn("")
+	}
 }
 
 func (g *Generator) genDatabase() {
@@ -631,6 +684,51 @@ func (g *Generator) genBaseQuery() {
 	g.Pn("")
 	g.Pn("	return buf.String()")
 	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *BaseQuery) groupBy(fields ...string) {")
+	g.Pn("    q.groupByFields=make([]string,len(fields))")
+	g.Pn("    for i,v:=range fields{")
+	g.Pn("        q.groupByFields[i]=v")
+	g.Pn("    }")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *BaseQuery) setLimit(startIncluded int64, count int64) {")
+	g.Pn("	q.limit=fmt.Sprintf(\" limit %%d,%%d\", startIncluded, count)")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *BaseQuery) orderBy(fieldName string, asc bool) {")
+	g.Pn("    if q.order!=\"\"{")
+	g.Pn("        q.order+=\",\"")
+	g.Pn("    }")
+	g.Pn("    q.order+=fieldName+\" \"")
+	g.Pn("    if asc {")
+	g.Pn("        q.order+=\"asc\"")
+	g.Pn("    } else {")
+	g.Pn("        q.order+=\"desc\"")
+	g.Pn("    }")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func (q *BaseQuery) orderByGroupCount(asc bool) {")
+	g.Pn("    if q.order!=\"\"{")
+	g.Pn("        q.order+=\",\"")
+	g.Pn("    }")
+	g.Pn("    q.order+=\"count(1) \"")
+	g.Pn("    if asc {")
+	g.Pn("        q.order+=\"asc\"")
+	g.Pn("    } else {")
+	g.Pn("        q.order+=\"desc\"")
+	g.Pn("    }")
+	g.Pn("}")
+	g.Pn("")
+
+	g.Pn("func(q *BaseQuery)setWhere(format string,a ...interface{}){")
+	g.Pn("    q.where+=fmt.Sprintf(format,a...)")
+	g.Pn("    }")
+	g.Pn("")
 }
 
 func (g *Generator) gen() {

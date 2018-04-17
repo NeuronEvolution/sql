@@ -28,6 +28,9 @@ type Table struct {
 	GoName               string
 	ColumnList           []*Column
 	PrimaryColumn        *Column
+	CreateTimeColumn     *Column
+	UpdateTimeColumn     *Column
+	UpdateVersionColumn  *Column
 	IndexList            []*Index
 	UniqueIndexList      []*Index
 	UnionIndexList       []*UnionIndex
@@ -43,4 +46,16 @@ func newTable() (t *Table) {
 
 func (t *Table) AddColumn(c *Column) {
 	t.ColumnList = append(t.ColumnList, c)
+
+	if c.DbName == "create_time" {
+		t.CreateTimeColumn = c
+	}
+
+	if c.DbName == "update_time" {
+		t.UpdateTimeColumn = c
+	}
+
+	if c.DbName == "update_version" {
+		t.UpdateVersionColumn = c
+	}
 }
