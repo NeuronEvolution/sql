@@ -395,12 +395,14 @@ func (g *Generator) genSelectGroupBy(t *Table) {
 }
 
 func (g *Generator) genQuery(t *Table) {
+	//查询对象定义
 	g.Pn("type %sQuery struct{", t.GoName)
 	g.Pn("    BaseQuery")
 	g.Pn("    dao *%sDao", t.GoName)
 	g.Pn("}")
 	g.Pn("")
 
+	//构造函数
 	g.Pn("func New%sQuery(dao *%sDao)*%sQuery{", t.GoName, t.GoName, t.GoName)
 	g.Pn("    q:=&%sQuery{}", t.GoName)
 	g.Pn("    q.dao=dao")
@@ -409,38 +411,45 @@ func (g *Generator) genQuery(t *Table) {
 	g.Pn("}")
 	g.Pn("")
 
+	//查询单个结果
 	g.Pn("func (q *%sQuery)QueryOne(ctx context.Context,tx *wrap.Tx)(*%s,error){", t.GoName, t.GoName)
 	g.Pn("    return q.dao.QueryOne(ctx,tx,q.buildQueryString())")
 	g.Pn("}")
 	g.Pn("")
 
+	//查询列表
 	g.Pn("func (q *%sQuery)QueryList(ctx context.Context,tx *wrap.Tx)(list []*%s,err error){", t.GoName, t.GoName)
 	g.Pn("    return q.dao.QueryList(ctx,tx,q.buildQueryString())")
 	g.Pn("}")
 	g.Pn("")
 
+	//查询数量
 	g.Pn("func (q *%sQuery)QueryCount(ctx context.Context,tx *wrap.Tx)(count int64,err error){", t.GoName)
 	g.Pn("    return q.dao.QueryCount(ctx,tx,q.buildQueryString())")
 	g.Pn("}")
 	g.Pn("")
 
+	//分组查询
 	g.Pn("func (q* %sQuery)QueryGroupBy(ctx context.Context,tx *wrap.Tx)(rows *wrap.Rows,err error){", t.GoName)
 	g.Pn("    return q.dao.QueryGroupBy(ctx,tx,q.groupByFields,q.buildQueryString())")
 	g.Pn("}")
 	g.Pn("")
 
+	//写锁
 	g.Pn("func (q *%sQuery) ForUpdate()*%sQuery{", t.GoName, t.GoName)
 	g.Pn("    q.forUpdate=true")
 	g.Pn("    return q")
 	g.Pn("}")
 	g.Pn("")
 
+	//共享锁
 	g.Pn("func (q *%sQuery) ForShare()*%sQuery{", t.GoName, t.GoName)
 	g.Pn("    q.forShare=true")
 	g.Pn("    return q")
 	g.Pn("}")
 	g.Pn("")
 
+	//分组
 	g.Pn("func (q *%sQuery) GroupBy(fields ...%s_FIELD) *%sQuery {", t.GoName, strings.ToUpper(t.DbName), t.GoName)
 	g.Pn("    q.groupByFields=make([]string,len(fields))")
 	g.Pn("    for i,v:=range fields{")
@@ -450,30 +459,35 @@ func (g *Generator) genQuery(t *Table) {
 	g.Pn("}")
 	g.Pn("")
 
+	//分页
 	g.Pn("func (q *%sQuery) Limit(startIncluded int64, count int64) *%sQuery {", t.GoName, t.GoName)
 	g.Pn("	q.setLimit(startIncluded,count)")
 	g.Pn("	return q")
 	g.Pn("}")
 	g.Pn("")
 
+	//字段排序
 	g.Pn("func (q *%sQuery) OrderBy(fieldName %s_FIELD, asc bool) *%sQuery {", t.GoName, strings.ToUpper(t.DbName), t.GoName)
 	g.Pn("    q.orderBy(string(fieldName),asc)")
 	g.Pn("    return q")
 	g.Pn("}")
 	g.Pn("")
 
+	//数量排序
 	g.Pn("func (q *%sQuery) OrderByGroupCount(asc bool) *%sQuery {", t.GoName, t.GoName)
 	g.Pn("    q.orderByGroupCount(asc)")
 	g.Pn("    return q")
 	g.Pn("}")
 	g.Pn("")
 
+	//追加查询条件
 	g.Pn("func(q *%sQuery)w(format string,a ...interface{})*%sQuery{", t.GoName, t.GoName)
 	g.Pn("    q.setWhere(format,a...)")
 	g.Pn("    return q")
 	g.Pn("    }")
 	g.Pn("")
 
+	//括号与逻辑操作符
 	g.Pn("func(q *%sQuery)Left()*%sQuery{return q.w(\" ( \")}", t.GoName, t.GoName)
 	g.Pn("func(q *%sQuery)Right()*%sQuery{return q.w(\" ) \")}", t.GoName, t.GoName)
 	g.Pn("func(q *%sQuery)And()*%sQuery{return q.w(\" AND \")}", t.GoName, t.GoName)
@@ -481,10 +495,13 @@ func (g *Generator) genQuery(t *Table) {
 	g.Pn("func(q *%sQuery)Not()*%sQuery{return q.w(\" NOT \")}", t.GoName, t.GoName)
 	g.Pn("")
 
+	//每个列相关的函数
 	for _, c := range t.ColumnList {
+		//等价判断函数
 		g.Pn("func (q *%sQuery)%s_Equal(v %s)*%sQuery{return q.w(\"%s='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
 		g.Pn("func (q *%sQuery)%s_NotEqual(v %s)*%sQuery{return q.w(\"%s<>'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
 
+		//非字符串生成比较函数
 		if c.GoTypeReal != "string" {
 			g.Pn("func (q *%sQuery)%s_Less(v %s)*%sQuery{return q.w(\"%s<'\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
 			g.Pn("func (q *%sQuery)%s_LessEqual(v %s)*%sQuery{return q.w(\"%s<='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
@@ -492,9 +509,17 @@ func (g *Generator) genQuery(t *Table) {
 			g.Pn("func (q *%sQuery)%s_GreaterEqual(v %s)*%sQuery{return q.w(\"%s>='\"+fmt.Sprint(v)+\"'\")}", t.GoName, c.GoName, c.GoTypeReal, t.GoName, c.DbName)
 		}
 
+		//可空字段判空
 		if !c.NotNull {
 			g.Pn("func (q *%sQuery)%s_IsNull()*%sQuery{return q.w(\"%s IS NULL\")}", t.GoName, c.GoName, t.GoName, c.DbName)
 			g.Pn("func (q *%sQuery)%s_NotNull()*%sQuery{return q.w(\"%s IS NOT NULL\")}", t.GoName, c.GoName, t.GoName, c.DbName)
+		}
+
+		//In查询
+		if c.GoTypeReal != "float32" && c.GoTypeReal != "float64" && c.GoTypeReal != "time.Time" {
+			g.Pn("func (q *%sQuery)%s_In(v []%s){", t.GoName, c.GoName, c.GoTypeReal)
+			g.Pn("}")
+			g.Pn("")
 		}
 	}
 	g.Pn("")

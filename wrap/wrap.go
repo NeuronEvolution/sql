@@ -32,11 +32,12 @@ func Open(driverName, dataSourceName string) (*DB, error) {
 	return db, err
 }
 
-func (db *DB) TransactionReadCommitted(ctx context.Context, readonly bool, f func(tx *Tx) (err error)) (err error) {
+func (db *DB) transaction(
+	ctx context.Context, readonly bool, f func(tx *Tx) (err error), isolation sql.IsolationLevel) (err error) {
 	db.logger.Info("Begin")
-	tx, err := db.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted, ReadOnly: readonly})
+	tx, err := db.db.BeginTx(ctx, &sql.TxOptions{Isolation: isolation, ReadOnly: readonly})
 	if err != nil {
-		db.logger.Error("DB.ReadCommittedTransaction", zap.Error(err))
+		db.logger.Error("DB.transaction", zap.Error(err))
 		return errors.Wrap(err)
 	}
 
@@ -64,6 +65,14 @@ func (db *DB) TransactionReadCommitted(ctx context.Context, readonly bool, f fun
 	return nil
 }
 
+func (db *DB) TransactionReadCommitted(ctx context.Context, readonly bool, f func(tx *Tx) (err error)) (err error) {
+	return db.transaction(ctx, readonly, f, sql.LevelReadCommitted)
+}
+
+func (db *DB) TransactionRepeatableRead(ctx context.Context, readonly bool, f func(tx *Tx) (err error)) (err error) {
+	return db.transaction(ctx, readonly, f, sql.LevelRepeatableRead)
+}
+
 func (db *DB) Prepare(ctx context.Context, query string) (*Stmt, error) {
 	db.logger.Info("DB.Prepare", zap.Any("ctx", ctx.Err()), zap.String("query", query))
 	stmt, err := db.db.PrepareContext(ctx, query)
@@ -75,9 +84,18 @@ func (db *DB) Prepare(ctx context.Context, query string) (*Stmt, error) {
 	return &Stmt{db: db, stmt: stmt, query: query}, nil
 }
 
-func (db *DB) Query(ctx context.Context, query string, args ...interface{}) (*Rows, error) {
+func (db *DB) Query(ctx context.Context, tx *Tx, query string, args ...interface{}) (*Rows, error) {
 	db.logger.Info("DB.Query", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
-	rows, err := db.db.QueryContext(ctx, query, args...)
+
+	var rows *sql.Rows
+	var err error
+
+	if tx == nil {
+		rows, err = db.db.QueryContext(ctx, query, args...)
+	} else {
+		rows, err = tx.tx.QueryContext(ctx, query, args)
+	}
+
 	if err != nil {
 		db.logger.Error("DB.Query", zap.Error(err))
 		return nil, errors.Wrap(err)
@@ -86,15 +104,31 @@ func (db *DB) Query(ctx context.Context, query string, args ...interface{}) (*Ro
 	return &Rows{db: db, rows: rows}, nil
 }
 
-func (db *DB) QueryRow(ctx context.Context, query string, args ...interface{}) *Row {
+func (db *DB) QueryRow(ctx context.Context, tx *Tx, query string, args ...interface{}) *Row {
 	db.logger.Info("DB.QueryRow", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
-	row := db.db.QueryRowContext(ctx, query, args...)
+
+	var row *sql.Row
+	if tx == nil {
+		row = db.db.QueryRowContext(ctx, query, args...)
+	} else {
+		row = tx.tx.QueryRowContext(ctx, query, args...)
+	}
+
 	return &Row{db: db, row: row}
 }
 
-func (db *DB) Exec(ctx context.Context, query string, args ...interface{}) (*Result, error) {
+func (db *DB) Exec(ctx context.Context, tx *Tx, query string, args ...interface{}) (*Result, error) {
 	db.logger.Info("DB.Exec", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
-	result, err := db.db.ExecContext(ctx, query, args...)
+
+	var result sql.Result
+	var err error
+
+	if tx == nil {
+		result, err = db.db.ExecContext(ctx, query, args...)
+	} else {
+		result, err = tx.tx.ExecContext(ctx, query, args...)
+	}
+
 	if err != nil {
 		db.logger.Error("DB.Exec", zap.Error(err))
 		return nil, errors.Wrap(err)
@@ -122,49 +156,6 @@ func (db *DB) Ping(ctx context.Context) error {
 type Tx struct {
 	db *DB
 	tx *sql.Tx
-}
-
-func (tx *Tx) Prepare(ctx context.Context, query string) (*Stmt, error) {
-	tx.db.logger.Info("Tx.Prepare", zap.Any("ctx", ctx.Err()), zap.String("query", query))
-	stmt, err := tx.tx.PrepareContext(ctx, query)
-	if err != nil {
-		tx.db.logger.Error("Tx.Prepare", zap.Error(err))
-		return nil, errors.Wrap(err)
-	}
-
-	return &Stmt{db: tx.db, stmt: stmt, query: query}, nil
-}
-
-func (tx *Tx) Stmt(ctx context.Context, stmt *Stmt) *Stmt {
-	tx.db.logger.Info("Tx.Stmt", zap.Any("ctx", ctx.Err()), zap.Any("stmt", stmt))
-	return &Stmt{db: tx.db, stmt: tx.tx.Stmt(stmt.stmt), query: stmt.query}
-}
-
-func (tx *Tx) Exec(ctx context.Context, query string, args ...interface{}) (*Result, error) {
-	tx.db.logger.Info("Tx.Exec", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
-	result, err := tx.tx.ExecContext(ctx, query, args...)
-	if err != nil {
-		tx.db.logger.Error("Tx.Exec", zap.Error(err))
-		return nil, errors.Wrap(err)
-	}
-
-	return &Result{db: tx.db, result: result}, nil
-}
-
-func (tx *Tx) Query(ctx context.Context, query string, args ...interface{}) (*Rows, error) {
-	tx.db.logger.Info("Tx.Query", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
-	rows, err := tx.tx.QueryContext(ctx, query, args...)
-	if err != nil {
-		tx.db.logger.Error("Tx.Query", zap.Error(err))
-		return nil, errors.Wrap(err)
-	}
-
-	return &Rows{db: tx.db, rows: rows}, nil
-}
-
-func (tx *Tx) QueryRow(ctx context.Context, query string, args ...interface{}) *Row {
-	tx.db.logger.Info("Tx.QueryRow", zap.Any("ctx", ctx.Err()), zap.String("query", fmt.Sprintf(query, args...)))
-	return &Row{db: tx.db, row: tx.tx.QueryRowContext(ctx, query, args...)}
 }
 
 type Stmt struct {
