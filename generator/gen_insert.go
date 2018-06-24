@@ -1,7 +1,8 @@
-package generator2
+package generator
 
 import (
 	"fmt"
+	"github.com/NeuronFramework/sql/wrap"
 	"strings"
 )
 
@@ -80,7 +81,7 @@ func (g *Generator) buildInsertStmt(t *Table) string {
 	fields := g.buildInsertFields(t)
 	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", t.DbName,
 		strings.Join(fields, ","),
-		g.buildParamsPlaceholder(len(fields)))
+		wrap.RepeatWithSeparator("?", len(fields), ","))
 }
 
 func (g *Generator) genDaoInsert(t *Table) {
@@ -110,12 +111,12 @@ func (g *Generator) genDaoInsert(t *Table) {
 		g.Pn("    }")
 	}
 	g.Pn("    params:=[]interface{} {%s}", strings.Join(insertParams, ","))
-	g.Pn("    return dao.db.Exec(ctx,tx,query.String(),params)")
+	g.Pn("    return dao.db.Exec(ctx,tx,query.String(),params...)")
 	g.Pn("}")
 	g.Pn("")
 
 	// BATCH INSERT [DUPLICATED]
-	batchPlaceHolder := g.buildParamsPlaceholder(len(fields))
+	batchPlaceHolder := wrap.RepeatWithSeparator("?", len(fields), ",")
 	if genDuplicated {
 		g.Pn("func (dao *%sDao)BatchInsert(ctx context.Context,tx *wrap.Tx,list []*%s,onDuplicatedKeyUpdate bool)"+
 			"(result *wrap.Result,err error){", t.GoName, t.GoName)
@@ -125,10 +126,7 @@ func (g *Generator) genDaoInsert(t *Table) {
 	}
 	g.Pn("    query:=bytes.NewBufferString(\"\")")
 	g.Pn("    query.WriteString(\"INSERT INTO %s (%s) VALUES \")", t.DbName, strings.Join(fields, ","))
-	g.Pn("    query.WriteString(\"(%s)\")", batchPlaceHolder)
-	g.Pn("    if len(list)>1{")
-	g.Pn("        query.WriteString(strings.Repeat(\",(%s)\",len(list)-1))", batchPlaceHolder)
-	g.Pn("    }")
+	g.Pn("    query.WriteString(wrap.RepeatWithSeparator(\"(%s)\",len(list),\",\"))", batchPlaceHolder)
 	if genDuplicated {
 		g.Pn("    if onDuplicatedKeyUpdate{")
 		g.Pn("        query.WriteString(\" ON DUPLICATED KEY UPDATE %s\")",
@@ -144,7 +142,7 @@ func (g *Generator) genDaoInsert(t *Table) {
 	g.Pn("    offset+=%d", len(insertParams))
 	g.Pn("    }")
 	g.Pn("")
-	g.Pn("    return dao.db.Exec(ctx,tx,query.String(),params)")
+	g.Pn("    return dao.db.Exec(ctx,tx,query.String(),params...)")
 	g.Pn("}")
 	g.Pn("")
 }

@@ -1,4 +1,4 @@
-package generator2
+package generator
 
 import "strings"
 
@@ -23,7 +23,7 @@ func (g *Generator) genDaoUpdate(t *Table) {
 		t.GoName, t.GoName)
 	g.Pn("    query:=\"UPDATE %s SET %s WHERE id=?\"", t.DbName, strings.Join(updateStmts, ","))
 	g.Pn("    params:=[]interface{} {%s}", strings.Join(updateParams, ","))
-	g.Pn("    return dao.db.Exec(ctx,tx,query,params)")
+	g.Pn("    return dao.db.Exec(ctx,tx,query,params...)")
 	g.Pn("}")
 	g.Pn("")
 }

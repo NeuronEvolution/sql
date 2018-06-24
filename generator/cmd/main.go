@@ -8,38 +8,38 @@ import (
 )
 
 func main() {
-	sql_file_flag := flag.String("sql_file", "", "sql file")
-	orm_file_flag := flag.String("orm_file", "", "orm file")
-	package_name_flag := flag.String("package_name", "", "package name")
+	sqlFileFlag := flag.String("sql_file", "", "sql file")
+	ormFileFlag := flag.String("orm_file", "", "orm file")
+	packageNameFlag := flag.String("package_name", "", "package name")
 	flag.Parse()
 
-	sql_file := *sql_file_flag
-	orm_file := *orm_file_flag
-	package_name := *package_name_flag
+	sqlFile := *sqlFileFlag
+	ormFile := *ormFileFlag
+	packageName := *packageNameFlag
 
-	if sql_file == "" {
+	if sqlFile == "" {
 		fmt.Println("sql file null")
 		return
 	}
 
-	if orm_file == "" {
+	if ormFile == "" {
 		fmt.Println("orm file null")
 		return
 	}
 
-	sqlData, err := ioutil.ReadFile(sql_file)
+	sqlData, err := ioutil.ReadFile(sqlFile)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
 	gen := generator.NewGenerator()
-	orm, err := gen.Gen(string(sqlData), package_name)
+	orm, err := gen.Gen(string(sqlData), packageName)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	err = ioutil.WriteFile(orm_file, []byte(orm), 0)
+	err = ioutil.WriteFile(ormFile, []byte(orm), 0)
 	if err != nil {
 		fmt.Println(err.Error())
 	}

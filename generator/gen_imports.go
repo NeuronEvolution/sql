@@ -1,7 +1,9 @@
-package generator2
+package generator
+
+import "strings"
 
 func (g *Generator) genImports() {
-	g.Pn("package %s", g.Namespace)
+	g.Pn("package %s", strings.Replace(g.Namespace, "-", "_", -1))
 	g.Pn("")
 	g.Pn("import(")
 	g.Pn("    \"go.uber.org/zap\"")

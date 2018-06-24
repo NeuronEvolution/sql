@@ -1,4 +1,4 @@
-package generator2
+package generator
 
 func (g *Generator) genQuery(t *Table) {
 	// 查询对象定义
@@ -9,7 +9,7 @@ func (g *Generator) genQuery(t *Table) {
 	g.Pn("")
 
 	// 构造函数
-	g.Pn("func (dao *%sDao)NewQuery() *%sQuery {", t.GoName, t.GoName)
+	g.Pn("func (dao *%sDao)Query() *%sQuery {", t.GoName, t.GoName)
 	g.Pn("    q:= &%sQuery{}", t.GoName)
 	g.Pn("    q.dao=dao")
 	g.Pn("    q.where=bytes.NewBufferString(\"\")")
@@ -123,18 +123,8 @@ func (g *Generator) genQuery(t *Table) {
 		// In查询
 		if c.GoTypeReal != "float32" && c.GoTypeReal != "float64" && c.GoTypeReal != "time.Time" {
 			g.Pn("func (q *%sQuery)%sIn(items []%s) *%sQuery {", t.GoName, c.GoName, c.GoTypeReal, t.GoName)
-			g.Pn("    count:=len(items)")
-			g.Pn("    if count==0{")
-			g.Pn("        return q")
-			g.Pn("    }")
-			g.Pn("")
 			g.Pn("    q.where.WriteString(\" %s IN(\")", c.DbName)
-			g.Pn("    if count>=1{")
-			g.Pn("        q.where.WriteString(\"?\")")
-			g.Pn("        q.where.WriteString(strings.Repeat(\",?\",count-1))")
-			g.Pn("    }else{")
-			g.Pn("        q.where.WriteString(\"?\")")
-			g.Pn("    }")
+			g.Pn("    q.where.WriteString(wrap.RepeatWithSeparator(\"?\",len(items),\",\"))")
 			g.Pn("    q.where.WriteString(\")\")")
 			g.Pn("    q.whereParams=append(q.whereParams,items)")
 			g.Pn("    return q")

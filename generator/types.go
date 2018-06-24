@@ -12,6 +12,18 @@ type Column struct {
 	Unsigned      bool
 }
 
+func (c *Column) IsUniqueIndex(t *Table) bool {
+	if t.UniqueIndexList != nil {
+		for _, i := range t.UniqueIndexList {
+			if i.Column == c {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 type Index struct {
 	Name   string
 	Column *Column
