@@ -65,11 +65,8 @@ func (g *Generator) genTable(t *Table) {
 	g.genEntity(t)
 	g.genQuery(t)
 	g.genQuerySelect(t)
+	g.genQueryInsert(t)
 	g.genQueryUpdate(t)
 	g.genQueryDelete(t)
 	g.genDao(t)
-	g.genDaoInsert(t)
-	g.genDelete(t)
-	g.genDaoUpdate(t)
-	g.genSelect(t)
 }

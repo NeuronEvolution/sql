@@ -3,6 +3,7 @@ package generator
 func (g *Generator) genCommonQuery() {
 	// 查询基础定义
 	g.Pn("type QueryBase struct {")
+	g.Pn("    tableName string")
 	g.Pn("    where *bytes.Buffer")
 	g.Pn("    whereParams []interface{}")
 	g.Pn("    groupByFields []string")
@@ -16,6 +17,8 @@ func (g *Generator) genCommonQuery() {
 	g.Pn("    forShare bool")
 	g.Pn("    updateFields []string")
 	g.Pn("    updateParams []interface{}")
+	g.Pn("    getFields []string")
+	g.Pn("    duplicatedUpdateFields []string")
 	g.Pn("}")
 	g.Pn("")
 
@@ -44,9 +47,10 @@ func (g *Generator) genCommonQuery() {
 	g.Pn("        query.WriteString(strings.Join(groupByItems,\",\"))")
 	g.Pn("    }")
 	g.Pn("")
+	g.Pn("    var orderByItems []string")
 	g.Pn("    orderByCount:=len(q.orderByFields)")
 	g.Pn("    if orderByCount>0{")
-	g.Pn("        orderByItems:=make([]string,orderByCount)")
+	g.Pn("        orderByItems=make([]string,orderByCount)")
 	g.Pn("        for i,v:=range q.orderByFields{")
 	g.Pn("            if q.orderByOrders[i]{")
 	g.Pn("                orderByItems[i]=v+\" ASC\"")
@@ -60,6 +64,15 @@ func (g *Generator) genCommonQuery() {
 	g.Pn("")
 	g.Pn("    if q.hasLimit{")
 	g.Pn("        query.WriteString(fmt.Sprintf(\" LIMIT %%d,%%d\",q.limitStartIncluded,q.limitCount))")
+	g.Pn("    }")
+	g.Pn("")
+	g.Pn("    if q.limitStartIncluded > 128 {") //limit优化
+	g.Pn("        query=bytes.NewBufferString(fmt.Sprintf(\"INNER JOIN (SELECT id FROM %%s %%s) AS t USING(id)\"," +
+		" q.tableName, query.String()))")
+	g.Pn("        if len(orderByItems)>0{")
+	g.Pn("            query.WriteString(\" ORDER BY \")")
+	g.Pn("            query.WriteString(strings.Join(orderByItems,\",\"))")
+	g.Pn("        }")
 	g.Pn("    }")
 	g.Pn("")
 	g.Pn("    if q.forUpdate{")

@@ -4,32 +4,14 @@ docker run --name mysql -p 3307:3306 -e MYSQL_ROOT_PASSWORD=123456 -v /Users/god
 ### Attention
     - mysql connection string with ?parseTime=true
     
-### Feather
-    - query builder
-    - golang sql wrapper
-    - transaction
-    - extendable
-    - upgrade ddl shell
-    
 ### Todo
     - metric
-    - batch
-    - simple join,may be no need
-
-### #########################    
-    
-### 增删改
-    - update width version//根据主键全部更新，带版本号
-        -- UPDATE table set all,update_version=$update_version+1 where id=? AND update_version=$update_version
-    - partial update//根据主键部分更新
-        -- UPDATE table set c1=?,c2=? WHERE id= ?
-    - partial update with version////根据主键部分更新，带版本号
-        -- UPDATE table set c1=?,c2=?,update_version=$update_version+1 WHERE id= ? AND update_version=$update_version
-
-### 其它
-    - 参数化，防sql注入
+    - join
     - 字符串截断检测
     - 自动生成Statement
+    - onduplicated key update 指定更新字段
+    - 增加对update_time的自动输入
+    - ［已完成］优化limit
     
 # INSERT
 INSERT 

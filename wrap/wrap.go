@@ -6,11 +6,12 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/NeuronFramework/errors"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"go.uber.org/zap"
 )
 
 var ErrNoRows = fmt.Errorf("sql: no rows in result set")
+var ErrDuplicated = fmt.Errorf("sql: duplicated")
 
 type DB struct {
 	logger *zap.Logger
@@ -131,7 +132,16 @@ func (db *DB) Exec(ctx context.Context, tx *Tx, query string, args ...interface{
 
 	if err != nil {
 		db.logger.Error("DB.Exec", zap.Error(err))
-		return nil, errors.Wrap(err)
+		switch err.(type) {
+		case *mysql.MySQLError:
+			mysqlErr := err.(*mysql.MySQLError)
+			if mysqlErr.Number == 1062 {
+				return nil, ErrDuplicated
+			}
+			return nil, errors.Wrap(mysqlErr)
+		default:
+			return nil, errors.Wrap(err)
+		}
 	}
 
 	return &Result{db: db, result: result}, err

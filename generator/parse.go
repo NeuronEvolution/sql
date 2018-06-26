@@ -7,20 +7,20 @@ import (
 
 func goName(name string) (goName string) {
 	goName = ""
-	is_ := true
+	is := true
 	for i := 0; i < len(name); i++ {
-		if is_ {
+		if is {
 			if name[i] == '_' {
-				is_ = true
+				is = true
 			} else {
-				is_ = false
+				is = false
 				goName += strings.ToUpper(string(name[i]))
 			}
 		} else {
 			if name[i] == '_' {
-				is_ = true
+				is = true
 			} else {
-				is_ = false
+				is = false
 				goName += string(name[i])
 			}
 		}
