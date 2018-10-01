@@ -5,13 +5,24 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/NeuronFramework/errors"
 	"github.com/go-sql-driver/mysql"
 	"go.uber.org/zap"
 )
 
-var ErrNoRows = fmt.Errorf("sql: no rows in result set")
-var ErrDuplicated = fmt.Errorf("sql: duplicated")
+type Error struct {
+	Err error
+}
+
+var ErrNoRows = ErrorWrap(fmt.Errorf("sql: no rows in result set"))
+var ErrDuplicated = ErrorWrap(fmt.Errorf("sql: duplicated"))
+
+func (e *Error) Error() string {
+	return e.Err.Error()
+}
+
+func ErrorWrap(err error) *Error {
+	return &Error{Err: err}
+}
 
 type DB struct {
 	logger *zap.Logger
@@ -26,7 +37,7 @@ func Open(driverName, dataSourceName string) (*DB, error) {
 	sqlDB, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
 		db.logger.Error("Open", zap.Error(err))
-		return nil, errors.Wrap(err)
+		return nil, ErrorWrap(err)
 	}
 	db.db = sqlDB
 
@@ -39,7 +50,7 @@ func (db *DB) transaction(
 	tx, err := db.db.BeginTx(ctx, &sql.TxOptions{Isolation: isolation, ReadOnly: readonly})
 	if err != nil {
 		db.logger.Error("DB.transaction", zap.Error(err))
-		return errors.Wrap(err)
+		return ErrorWrap(err)
 	}
 
 	defer func() {
@@ -53,14 +64,14 @@ func (db *DB) transaction(
 	err = f(&Tx{db: db, tx: tx})
 	if err != nil {
 		db.logger.Info("transaction exec failed", zap.Error(err))
-		return err
+		return ErrorWrap(err)
 	}
 
 	db.logger.Info("Commit")
 	err = tx.Commit()
 	if err != nil {
 		db.logger.Error("Commit", zap.Error(err))
-		return errors.Wrap(err)
+		return ErrorWrap(err)
 	}
 
 	return nil
@@ -79,7 +90,7 @@ func (db *DB) Prepare(ctx context.Context, query string) (*Stmt, error) {
 	stmt, err := db.db.PrepareContext(ctx, query)
 	if err != nil {
 		db.logger.Error("DB.Prepare", zap.Error(err))
-		return nil, errors.Wrap(err)
+		return nil, ErrorWrap(err)
 	}
 
 	return &Stmt{db: db, stmt: stmt, query: query}, nil
@@ -99,7 +110,7 @@ func (db *DB) Query(ctx context.Context, tx *Tx, query string, args ...interface
 
 	if err != nil {
 		db.logger.Error("DB.Query", zap.Error(err))
-		return nil, errors.Wrap(err)
+		return nil, ErrorWrap(err)
 	}
 
 	return &Rows{db: db, rows: rows}, nil
@@ -138,9 +149,9 @@ func (db *DB) Exec(ctx context.Context, tx *Tx, query string, args ...interface{
 			if mysqlErr.Number == 1062 {
 				return nil, ErrDuplicated
 			}
-			return nil, errors.Wrap(mysqlErr)
+			return nil, ErrorWrap(mysqlErr)
 		default:
-			return nil, errors.Wrap(err)
+			return nil, ErrorWrap(err)
 		}
 	}
 
@@ -157,7 +168,7 @@ func (db *DB) Ping(ctx context.Context) error {
 	err := db.db.PingContext(ctx)
 	if err != nil {
 		db.logger.Error("DB.Ping", zap.Error(err))
-		return errors.Wrap(err)
+		return ErrorWrap(err)
 	}
 
 	return nil
@@ -178,7 +189,7 @@ func (s *Stmt) Close() error {
 	err := s.stmt.Close()
 	if err != nil {
 		s.db.logger.Error("Stmt.Close", zap.Error(err))
-		return errors.Wrap(err)
+		return ErrorWrap(err)
 	}
 
 	return nil
@@ -194,7 +205,7 @@ func (s *Stmt) Exec(ctx context.Context, args ...interface{}) (*Result, error) {
 	result, err := s.stmt.ExecContext(ctx, args...)
 	if err != nil {
 		s.db.logger.Error("Stmt.Exec", zap.Error(err))
-		return nil, errors.Wrap(err)
+		return nil, ErrorWrap(err)
 	}
 
 	return &Result{db: s.db, result: result}, nil
@@ -210,7 +221,7 @@ func (s *Stmt) Query(ctx context.Context, args ...interface{}) (*Rows, error) {
 	rows, err := s.stmt.QueryContext(ctx, args...)
 	if err != nil {
 		s.db.logger.Error("Stmt.Query", zap.Error(err))
-		return nil, errors.Wrap(err)
+		return nil, ErrorWrap(err)
 	}
 	return &Rows{db: s.db, rows: rows}, nil
 }
@@ -235,7 +246,7 @@ func (r *Rows) Err() error {
 	err := r.rows.Err()
 	if err != nil {
 		r.db.logger.Error("Rows.Err", zap.Error(err))
-		errors.Wrap(err)
+		return ErrorWrap(err)
 	}
 
 	return nil
@@ -253,7 +264,7 @@ func (r *Rows) Scan(dest ...interface{}) error {
 		}
 
 		r.db.logger.Error("Rows.Scan", zap.Error(err))
-		return errors.Wrap(err)
+		return ErrorWrap(err)
 	}
 
 	return nil
@@ -272,7 +283,7 @@ func (r *Row) Scan(dest ...interface{}) error {
 		}
 
 		r.db.logger.Error("Row.Scan", zap.Error(err))
-		return errors.Wrap(err)
+		return ErrorWrap(err)
 	}
 
 	return nil
@@ -287,7 +298,7 @@ func (r *Result) LastInsertId() (int64, error) {
 	n, err := r.result.LastInsertId()
 	if err != nil {
 		r.db.logger.Error("Result.LastInsertId", zap.Error(err))
-		return 0, errors.Wrap(err)
+		return 0, ErrorWrap(err)
 	}
 
 	return n, nil
@@ -296,7 +307,7 @@ func (r *Result) RowsAffected() (int64, error) {
 	n, err := r.result.RowsAffected()
 	if err != nil {
 		r.db.logger.Error("Result.RowsAffected", zap.Error(err))
-		return 0, errors.Wrap(err)
+		return 0, ErrorWrap(err)
 	}
 
 	return n, nil

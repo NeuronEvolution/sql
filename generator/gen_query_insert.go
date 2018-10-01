@@ -6,49 +6,6 @@ import (
 	"strings"
 )
 
-func (g *Generator) buildInsertOnDuplicatedKeyUpdateStmts(t *Table) []string {
-	var updateStmtList []string
-	for _, c := range t.ColumnList {
-		if c.AutoIncrement || c.DbName == "create_time" || c.DbName == "update_time" {
-			continue
-		}
-
-		hasUniqueIndex := false
-		if t.UniqueIndexList != nil {
-			for _, i := range t.UniqueIndexList {
-				if i.Column == c {
-					hasUniqueIndex = true
-					break
-				}
-			}
-		}
-		if hasUniqueIndex {
-			continue
-		}
-
-		if t.UniqueUnionIndexList != nil {
-			for _, i := range t.UniqueUnionIndexList {
-				for _, j := range i.ColumnList {
-					if j == c {
-						hasUniqueIndex = true
-						break
-					}
-				}
-				if hasUniqueIndex {
-					break
-				}
-			}
-		}
-		if hasUniqueIndex {
-			continue
-		}
-
-		updateStmtList = append(updateStmtList, c.DbName+"=VALUES("+c.DbName+")")
-	}
-
-	return updateStmtList
-}
-
 func (g *Generator) genQueryInsert(t *Table) {
 	var fields []string
 	for _, c := range t.ColumnList {

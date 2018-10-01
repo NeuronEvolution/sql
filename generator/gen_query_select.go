@@ -95,7 +95,7 @@ func (g *Generator) genQuerySelect(t *Table) {
 	g.Pn("    query.WriteString(\"SELECT \")")
 	g.Pn("    query.WriteString(strings.Join(q.groupByFields,\",\"))")
 	g.Pn("    if withCount{")
-	g.Pn("        query.WriteString(\",Count(*) \")")
+	g.Pn("        query.WriteString(\",MachineListCount(*) \")")
 	g.Pn("    }")
 	g.Pn("    query.WriteString(\" FROM %s \")", t.DbName)
 	g.Pn("    query.WriteString(queryString)")
